@@ -8,8 +8,10 @@
 #include <stdint.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+
 #include <linux/types.h>
 #include <linux/usb/ch9.h>
+#include <linux/hid.h>
 
 #define DEV_RAW_GADGET 		"/dev/raw-gadget"
 #define DEVICE_NAME  		"dummy_udc.0"
@@ -36,10 +38,11 @@ struct usb_raw_event {
 	__u8		data[];
 };
 
-// struct usb_ctrlrequest is at
+// wrapper for control event: struct usb_ctrlrequest is at
 // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L210
 // - contains SETUP data for a USB device control request
 // - matches fields of the USB 2.0 Spec
+// - can be made any time 
 struct usb_control_event {
 	struct usb_raw_event 	inner_event;
 	struct usb_ctrlrequest 	ctrl;
@@ -125,29 +128,205 @@ void usb_fetch(int fd, struct usb_raw_event *event) {
 	}
 }
 
+// constants taken from
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L39
+void ctrl_log(struct usb_ctrlrequest *event) {
+	fprintf(stdout, "[i] CONTROL REQUEST DATA:\n");
+	fprintf(stdout, "    ----------------------------------------------------------------\n");
+	// USB directions (1/3 of bRequestType)
+	fprintf(stdout, "    bRequestType:\t0x%x\n\t\t\t[%s]\n",
+			event->bRequestType,
+			(event->bRequestType & USB_DIR_IN) ? "IN - to host" : "OUT - to device");
+	// USB types (2/3 of bRequestType)	
+	switch (event->bRequestType & USB_TYPE_MASK) {
+		case USB_TYPE_STANDARD:
+			fprintf(stdout, "\t\t\tUSB_TYPE_STANDARD:");
+			// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L72
+			switch (event->bRequest) {
+				case USB_REQ_GET_STATUS:
+					fprintf(stdout, "\tUSB_REQ_GET_STATUS\n");
+					break;
+				case USB_REQ_CLEAR_FEATURE:
+					fprintf(stdout, "\tUSB_REQ_CLEAR_FEATURE\n");
+					break;
+				case USB_REQ_SET_FEATURE:
+					fprintf(stdout, "\tUSB_REQ_SET_FEATURE\n");
+					break;
+				case USB_REQ_SET_ADDRESS:
+					fprintf(stdout, "\tUSB_REQ_SET_ADDRESS\n");
+					break;
+				case USB_REQ_GET_DESCRIPTOR:
+					// Standard descriptors:
+					// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L221
+					fprintf(stdout, "\tUSB_REQ_GET_DESCRIPTOR");
+					switch (event->wValue >> 8) {
+						case USB_DT_DEVICE:
+							fprintf(stdout, "\t[desc =  USB_DT_DEVICE]\n");
+							break;
+						case USB_DT_CONFIG:
+							fprintf(stdout, "\t[desc =  USB_DT_CONFIG]\n");
+							break;
+						case USB_DT_STRING:
+							fprintf(stdout, "\t[desc =  USB_DT_STRING]\n");
+							break;
+						case USB_DT_INTERFACE:
+							fprintf(stdout, "\t[desc =  USB_DT_INTERFACE]\n");
+							break;
+						case USB_DT_ENDPOINT:
+							fprintf(stdout, "\t[desc =  USB_DT_ENDPOINT]\n");
+							break;
+						case USB_DT_DEVICE_QUALIFIER:
+							fprintf(stdout, "\t[desc =  USB_DT_DEVICE_QUALIFIER]\n");
+							break;
+						case USB_DT_OTHER_SPEED_CONFIG:
+							fprintf(stdout, "\t[desc =  USB_DT_OTHER_SPEED_CONFIG]\n");
+							break;
+						case USB_DT_INTERFACE_POWER:
+							fprintf(stdout, "\t[desc =  USB_DT_INTERFACE_POWER]\n");
+							break;
+						case USB_DT_OTG:
+							fprintf(stdout, "\t[desc =  USB_DT_OTG]\n");
+							break;
+						case USB_DT_DEBUG:
+							fprintf(stdout, "\t[desc =  USB_DT_DEBUG]\n");
+							break;
+						case USB_DT_INTERFACE_ASSOCIATION:
+							fprintf(stdout, "\t[desc = USB_DT_INTERFACE_ASSOCIATION]\n");
+							break;
+						case USB_DT_SECURITY:
+							fprintf(stdout, "\t[desc = USB_DT_SECURITY]\n");
+							break;
+						case USB_DT_KEY:
+							fprintf(stdout, "\t[desc = USB_DT_KEY]\n");
+							break;
+						case USB_DT_ENCRYPTION_TYPE:
+							fprintf(stdout, "\t[desc = USB_DT_ENCRYPTION_TYPE]\n");
+							break;
+						case USB_DT_BOS:
+							fprintf(stdout, "\t[desc = USB_DT_BOS]\n");
+							break;
+						case USB_DT_DEVICE_CAPABILITY:
+							fprintf(stdout, "\t[desc = USB_DT_DEVICE_CAPABILITY]\n");
+							break;
+						case USB_DT_WIRELESS_ENDPOINT_COMP:
+							fprintf(stdout, "\t[desc = USB_DT_WIRELESS_ENDPOINT_COMP]\n");
+							break;
+						case USB_DT_PIPE_USAGE:
+							fprintf(stdout, "\t[desc = USB_DT_PIPE_USAGE]\n");
+							break;
+						case USB_DT_SS_ENDPOINT_COMP:
+							fprintf(stdout, "\t[desc = USB_DT_SS_ENDPOINT_COMP]\n");
+							break;
+						case HID_DT_HID:
+							fprintf(stdout, "\t[desc = HID_DT_HID]\n");
+							break;
+						case HID_DT_REPORT:
+							fprintf(stdout, "\t[desc = HID_DT_REPORT]\n");
+							break;
+						case HID_DT_PHYSICAL:
+							fprintf(stdout, "\t[desc = HID_DT_PHYSICAL]\n");
+							break;
+						default:
+							fprintf(stdout, "\t[desc = UNKNOWN = 0x%x]\n", event->wValue >> 8);
+							break;
+					}
+					break;
+				case USB_REQ_SET_DESCRIPTOR:
+					fprintf(stdout, "\tUSB_REQ_SET_DESCRIPTOR\n");
+					break;
+				case USB_REQ_GET_CONFIGURATION:
+					fprintf(stdout, "\tUSB_REQ_GET_CONFIGURATION\n");
+					break;
+				case USB_REQ_SET_CONFIGURATION:
+					fprintf(stdout, "\tUSB_REQ_SET_CONFIGURATION\n");
+					break;
+				case USB_REQ_GET_INTERFACE:
+					fprintf(stdout, "\tUSB_REQ_GET_INTERFACE\n");
+					break;
+				case USB_REQ_SET_INTERFACE:
+					fprintf(stdout, "\tUSB_REQ_SET_INTERFACE\n");
+					break;
+				case USB_REQ_SYNCH_FRAME:
+					fprintf(stdout, "\tUSB_REQ_SYNCH_FRAME\n");
+					break;
+				case USB_REQ_SET_SEL:
+					fprintf(stdout, "\tUSB_REQ_SET_SEL\n");
+					break;
+				case USB_REQ_SET_ISOCH_DELAY:
+					fprintf(stdout, "\tUSB_REQ_SET_ISOCH_DELAY\n");
+					break;
+				default:
+					fprintf(stdout, "\tUNKNOWN USB REQ = %d\n", (int)event->bRequest);
+					break;
+			}
+			break;
+		case USB_TYPE_CLASS:
+			fprintf(stdout, "\t\t\tUSB_TYPE_CLASS\n");
+			break;
+		case USB_TYPE_VENDOR:
+			fprintf(stdout, "\t\t\tUSB_TYPE_VENDOR\n");
+			break;
+		case USB_TYPE_RESERVED:
+			fprintf(stdout, "\t\t\tUSB_TYPE_RESERVED\n");
+			break;
+		default:
+			fprintf(stdout, "\t\t\tUNKNOWN TYPE = 0x%x\n", event->bRequestType);
+			break;
+	}
+	// UBS recipients (3/3 of bRequestType)
+	switch (event->bRequestType & USB_RECIP_MASK) {
+		case USB_RECIP_DEVICE:
+			fprintf(stdout, "\t\t\tUSB_RECIP_DEVICE\n");
+			break;
+		case USB_RECIP_INTERFACE:
+			fprintf(stdout, "\t\t\tUSB_RECIP_INTERFACE\n");
+			break;
+		case USB_RECIP_ENDPOINT:
+			fprintf(stdout, "\t\t\tUSB_RECIP_ENDPOINT\n");
+			break;
+		case USB_RECIP_OTHER:
+			fprintf(stdout, "\t\t\tUSB_RECIP_OTHER\n");
+			break;
+		default:
+			fprintf(stdout, "\t\t\tUNKNOWN RECIP  = %d\n", (int)event->bRequestType);
+			break;
+	}
+	fprintf(stdout, "    ----------------------------------------------------------------\n");
+	fprintf(stdout, "\t bRequest:\t0x%x\n", event->bRequest);
+	fprintf(stdout, "\t wValue:\t0x%x\n", event->wValue);
+	fprintf(stdout, "\t wIndex:\t0x%x\n", event->wIndex);
+	fprintf(stdout, "\t wLength:\t%d\n", event->wLength);
+}
+
+void event_log(struct usb_raw_event *event) {
+	fprintf(stdout, "[i] EVENT TYPE: %d, LENGTH: %u\n", event->type, event->length);
+	if (event->type == USB_RAW_EVENT_CONTROL) 
+		ctrl_log((struct usb_ctrlrequest *)event->data);
+}
+
 void usb_loop(int fd) {
 	// endless loop
-	int n = 0;
-	while (n < 10) {
-		// distinguishing control event
+	while (1) {
+		// distinguishing the control event
 		struct usb_control_event event;
 		event.inner_event.type = 0;
 		event.inner_event.length = sizeof(struct usb_control_event);
 		// fetch event
 		usb_fetch(fd, (struct usb_raw_event *)&event);
+		event_log((struct usb_raw_event*)&event);
 		if (event.inner_event.type == USB_RAW_EVENT_CONNECT) {
 			fprintf(stdout, "[i] USB_RAW_EVENT_CONNECT received\n");
-			n++;
 		}
-		if (event.inner_event.type == USB_RAW_EVENT_CONTROL)
+		if (event.inner_event.type == USB_RAW_EVENT_CONTROL) {
 			fprintf(stdout, "[i] USB_RAW_EVENT_CONTROL received\n");
+		}
 	}
 }
 
 int main()
 {
 	int fd;
-	// 1. create a Raw Gadget instance by opening /dev/raw-gadget
+	// 1. create a raw gadget instance by opening /dev/raw-gadget
 	fd = usb_open();	
 	// 2. initialize the instance via USB_RAW_IOCTL_INIT
 	usb_init(fd);
