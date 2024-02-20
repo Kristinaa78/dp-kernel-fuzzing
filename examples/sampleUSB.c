@@ -132,33 +132,32 @@ void usb_fetch(int fd, struct usb_raw_event *event) {
 // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L39
 void ctrl_log(struct usb_ctrlrequest *event) {
 	fprintf(stdout, "[i] CONTROL REQUEST DATA:\n");
-	fprintf(stdout, "    ----------------------------------------------------------------\n");
+	fprintf(stdout, "    ----------------------------------------------------------------------------\n");
 	// USB directions (1/3 of bRequestType)
-	fprintf(stdout, "    bRequestType:\t0x%x\n\t\t\t[%s]\n",
-			event->bRequestType,
-			(event->bRequestType & USB_DIR_IN) ? "IN - to host" : "OUT - to device");
+	fprintf(stdout, "    bRequestType:\tUSB_DIR_%s\n",
+			(event->bRequestType & USB_DIR_IN) ? "IN\t\t\t[to host]" : "OUT\t\t\t[to device]");
 	// USB types (2/3 of bRequestType)	
 	switch (event->bRequestType & USB_TYPE_MASK) {
 		case USB_TYPE_STANDARD:
-			fprintf(stdout, "\t\t\tUSB_TYPE_STANDARD:");
+			fprintf(stdout, "\t\t\tUSB_TYPE_STANDARD\n\t\t\t");
 			// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L72
 			switch (event->bRequest) {
 				case USB_REQ_GET_STATUS:
-					fprintf(stdout, "\tUSB_REQ_GET_STATUS\n");
+					fprintf(stdout, "├── USB_REQ_GET_STATUS\n");
 					break;
 				case USB_REQ_CLEAR_FEATURE:
-					fprintf(stdout, "\tUSB_REQ_CLEAR_FEATURE\n");
+					fprintf(stdout, "├── USB_REQ_CLEAR_FEATURE\n");
 					break;
 				case USB_REQ_SET_FEATURE:
-					fprintf(stdout, "\tUSB_REQ_SET_FEATURE\n");
+					fprintf(stdout, "├── USB_REQ_SET_FEATURE\n");
 					break;
 				case USB_REQ_SET_ADDRESS:
-					fprintf(stdout, "\tUSB_REQ_SET_ADDRESS\n");
+					fprintf(stdout, "├── USB_REQ_SET_ADDRESS\n");
 					break;
 				case USB_REQ_GET_DESCRIPTOR:
 					// Standard descriptors:
 					// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L221
-					fprintf(stdout, "\tUSB_REQ_GET_DESCRIPTOR");
+					fprintf(stdout, "├── USB_REQ_GET_DESCRIPTOR");
 					switch (event->wValue >> 8) {
 						case USB_DT_DEVICE:
 							fprintf(stdout, "\t[desc =  USB_DT_DEVICE]\n");
@@ -232,36 +231,59 @@ void ctrl_log(struct usb_ctrlrequest *event) {
 					}
 					break;
 				case USB_REQ_SET_DESCRIPTOR:
-					fprintf(stdout, "\tUSB_REQ_SET_DESCRIPTOR\n");
+					fprintf(stdout, "├── USB_REQ_SET_DESCRIPTOR\n");
 					break;
 				case USB_REQ_GET_CONFIGURATION:
-					fprintf(stdout, "\tUSB_REQ_GET_CONFIGURATION\n");
+					fprintf(stdout, "├── USB_REQ_GET_CONFIGURATION\n");
 					break;
 				case USB_REQ_SET_CONFIGURATION:
-					fprintf(stdout, "\tUSB_REQ_SET_CONFIGURATION\n");
+					fprintf(stdout, "├── USB_REQ_SET_CONFIGURATION\n");
 					break;
 				case USB_REQ_GET_INTERFACE:
-					fprintf(stdout, "\tUSB_REQ_GET_INTERFACE\n");
+					fprintf(stdout, "├── USB_REQ_GET_INTERFACE\n");
 					break;
 				case USB_REQ_SET_INTERFACE:
-					fprintf(stdout, "\tUSB_REQ_SET_INTERFACE\n");
+					fprintf(stdout, "├── USB_REQ_SET_INTERFACE\n");
 					break;
 				case USB_REQ_SYNCH_FRAME:
-					fprintf(stdout, "\tUSB_REQ_SYNCH_FRAME\n");
+					fprintf(stdout, "├── USB_REQ_SYNCH_FRAME\n");
 					break;
 				case USB_REQ_SET_SEL:
-					fprintf(stdout, "\tUSB_REQ_SET_SEL\n");
+					fprintf(stdout, "├── USB_REQ_SET_SEL\n");
 					break;
 				case USB_REQ_SET_ISOCH_DELAY:
-					fprintf(stdout, "\tUSB_REQ_SET_ISOCH_DELAY\n");
+					fprintf(stdout, "├── USB_REQ_SET_ISOCH_DELAY\n");
 					break;
 				default:
-					fprintf(stdout, "\tUNKNOWN USB REQ = %d\n", (int)event->bRequest);
+					fprintf(stdout, "├── UNKNOWN USB REQ = %d\n", (int)event->bRequest);
 					break;
 			}
 			break;
 		case USB_TYPE_CLASS:
 			fprintf(stdout, "\t\t\tUSB_TYPE_CLASS\n");
+			switch (event->bRequest) {
+				case HID_REQ_GET_REPORT:
+					fprintf(stdout, "├── HID_REQ_GET_REPORT\n");
+					break;
+				case HID_REQ_GET_IDLE:
+					fprintf(stdout, "├── HID_REQ_GET_IDLE\n");
+					break;
+				case HID_REQ_GET_PROTOCOL:
+					fprintf(stdout, "├── HID_REQ_GET_PROTOCOL\n");
+					break;
+				case HID_REQ_SET_REPORT:
+					fprintf(stdout, "├── HID_REQ_SET_REPORT\n");
+					break;
+				case HID_REQ_SET_IDLE:
+					fprintf(stdout, "├── HID_REQ_SET_IDLE\n");
+					break;
+				case HID_REQ_SET_PROTOCOL:
+					fprintf(stdout, "├── HID_REQ_SET_PROTOCOL\n");
+					break;
+				default:
+					fprintf(stdout, "├── UNKNOWN REQ = 0x%x\n", event->bRequest);
+					break;
+			}
 			break;
 		case USB_TYPE_VENDOR:
 			fprintf(stdout, "\t\t\tUSB_TYPE_VENDOR\n");
@@ -291,17 +313,38 @@ void ctrl_log(struct usb_ctrlrequest *event) {
 			fprintf(stdout, "\t\t\tUNKNOWN RECIP  = %d\n", (int)event->bRequestType);
 			break;
 	}
-	fprintf(stdout, "    ----------------------------------------------------------------\n");
-	fprintf(stdout, "\t bRequest:\t0x%x\n", event->bRequest);
-	fprintf(stdout, "\t wValue:\t0x%x\n", event->wValue);
-	fprintf(stdout, "\t wIndex:\t0x%x\n", event->wIndex);
-	fprintf(stdout, "\t wLength:\t%d\n", event->wLength);
+	fprintf(stdout, "    ----------------------------------------------------------------------------\n");
 }
 
 void event_log(struct usb_raw_event *event) {
 	fprintf(stdout, "[i] EVENT TYPE: %d, LENGTH: %u\n", event->type, event->length);
-	if (event->type == USB_RAW_EVENT_CONTROL) 
-		ctrl_log((struct usb_ctrlrequest *)event->data);
+	switch (event->type) {
+		case USB_RAW_EVENT_INVALID:
+			fprintf(stdout, "[i] USB_RAW_EVENT_INVALID fetched\n");
+			break;		
+		case USB_RAW_EVENT_CONNECT:
+			fprintf(stdout, "[i] USB_RAW_EVENT_CONNECT fetched\n");
+			break;
+		case USB_RAW_EVENT_CONTROL:
+			fprintf(stdout, "[i] USB_RAW_EVENT_CONTROL fetched\n");
+			ctrl_log((struct usb_ctrlrequest *)event->data);
+			break;
+		case USB_RAW_EVENT_SUSPEND:
+			fprintf(stdout, "[i] USB_RAW_EVENT_SUSPEND fetched\n");
+			break;
+		case USB_RAW_EVENT_RESUME:
+			fprintf(stdout, "[i] USB_RAW_EVENT_RESUME fetched\n");
+			break;
+		case USB_RAW_EVENT_RESET:
+			fprintf(stdout, "[i] USB_RAW_EVENT_RESET fetched\n");
+			break;
+		case USB_RAW_EVENT_DISCONNECT:
+			fprintf(stdout, "[i] USB_RAW_EVENT_DISCONNECT fetched\n");
+			break;
+		default:
+			fprintf(stdout, "[!] UNKNOWN EVENT TYPE fetched\n");
+			break;
+	}
 }
 
 void usb_loop(int fd) {
@@ -314,12 +357,6 @@ void usb_loop(int fd) {
 		// fetch event
 		usb_fetch(fd, (struct usb_raw_event *)&event);
 		event_log((struct usb_raw_event*)&event);
-		if (event.inner_event.type == USB_RAW_EVENT_CONNECT) {
-			fprintf(stdout, "[i] USB_RAW_EVENT_CONNECT received\n");
-		}
-		if (event.inner_event.type == USB_RAW_EVENT_CONTROL) {
-			fprintf(stdout, "[i] USB_RAW_EVENT_CONTROL received\n");
-		}
 	}
 }
 
