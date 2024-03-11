@@ -19,9 +19,20 @@
 #define UDC_NAME_LENGTH_MAX 128
 
 // from https://github.com/xairy/raw-gadget/blob/master/raw_gadget/raw_gadget.h
+// - IOCTLS definition
 #define USB_RAW_IOCTL_INIT		_IOW('U', 0, struct usb_raw_init)
 #define USB_RAW_IOCTL_RUN		_IO('U', 1)
 #define USB_RAW_IOCTL_EVENT_FETCH	_IOR('U', 2, struct usb_raw_event)
+#define USB_RAW_IOCTL_EPS_INFO		_IOR('U', 11, struct usb_raw_eps_info)
+// - EP-related constants
+#define USB_RAW_EP_ADDR_ANY	0xff
+#define USB_RAW_EPS_NUM_MAX	30
+#define USB_RAW_EP_NAME_MAX	16
+
+// custom endpoint constants
+#define EP_NUM_INT_IN		0x0
+#define EP_MAX_PACKET_INT	8
+#define EP0_MAX_DATA 		256
 
 // https://github.com/xairy/raw-gadget/blob/master/raw_gadget/raw_gadget.h#L31
 struct usb_raw_init {
@@ -46,6 +57,69 @@ struct usb_raw_event {
 struct usb_control_event {
 	struct usb_raw_event 	inner_event;
 	struct usb_ctrlrequest 	ctrl;
+};
+
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L119
+// - exposes capabilities based on [struct usb_ep_caps]:
+// https://elixir.bootlin.com/linux/latest/source/include/linux/usb/gadget.h#L165
+// - endpoint's supported transfer type and direction 
+struct usb_raw_ep_caps {
+	__u32	type_control: 1;
+	__u32	type_iso: 1;
+	__u32	type_bulk: 1;
+	__u32	type_int: 1;
+	__u32	dir_in: 1;
+	__u32	dir_out: 1;
+};
+
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L135
+// - endpoint's limits (maximum supported packet size, number of streams)
+struct usb_raw_ep_limits {
+	__u16	maxpacket_limit;
+	__u16	max_streams;
+	__u32	reserved;
+};
+
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L149
+// - info about gadget endpoint
+struct usb_raw_ep_info {
+	__u8						name[USB_RAW_EP_NAME_MAX];
+	__u32						addr;
+	struct usb_raw_ep_caps		caps;
+	struct usb_raw_ep_limits	limits;
+};
+
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L160
+// - argument for USB_RAW_IOCTL_EPS_INFO ioctl (stores non-control endpoints)
+struct usb_raw_eps_info {
+	struct usb_raw_ep_info	eps[USB_RAW_EPS_NUM_MAX];
+};
+
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L99
+// - argument for ioctls (READ/WRITE to EP0)
+struct usb_raw_ep_io {
+	__u16		ep;
+	__u16		flags;
+	__u32		length;
+	__u8		data[];
+};
+
+struct usb_raw_control_io {
+	struct usb_raw_ep_io	inner;
+	char					data[EP0_MAX_DATA];
+};
+
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L407
+// - endpoint descriptor
+// - misses 2 fields (bRefresh and bSynchAddress used in audio)
+// - constants are from usb/ch9 from USB 2.0 specification
+struct usb_endpoint_descriptor usb_endpoint = {
+	.bLength =			USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType =	USB_DT_ENDPOINT,
+	.bEndpointAddress =	USB_DIR_IN | EP_NUM_INT_IN,
+	.bmAttributes =		USB_ENDPOINT_XFER_INT,	// interrupt endpoint type
+	.wMaxPacketSize =	EP_MAX_PACKET_INT,
+	.bInterval =		5,
 };
 
 // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L38
@@ -92,7 +166,7 @@ int usb_init(int fd) {
 	strncpy((char *)&arg.driver_name, DRIVER_NAME, UDC_NAME_LENGTH_MAX);
 	// according to:
 	// https://github.com/torvalds/linux/blob/master/include/uapi/linux/usb/ch9.h#L1179C5-L1179C5
-	arg.speed = USB_SPEED_SUPER; // usb 3.0
+	arg.speed = USB_SPEED_HIGH; // usb 2.0
 
 	fprintf(stdout, "\tdevice_name: \t%s\n", arg.device_name);
 	fprintf(stdout, "\tdriver_name: \t%s\n", arg.driver_name);
@@ -347,6 +421,88 @@ void event_log(struct usb_raw_event *event) {
 	}
 }
 
+
+// queries information about non-control endpoints for current UDC
+int usb_raw_eps_info(int fd, struct usb_raw_eps_info *info) {
+	int result = ioctl(fd, USB_RAW_IOCTL_EPS_INFO, info);
+	
+	if (result  < 0)
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EPS_INFO failed with %d\n", result);
+
+	return result;
+}
+
+// all functions defined in:
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h
+// usb_endpoint_num - gets endpoint's number (0 - 15)
+// usb_endpoint_dir_in - checks if endpoint has IN direction
+// usb_endpoint_dir_out - checks if endpoint has OUT direction
+// usb_endpoint_maxp - gets endpoint's maximum supported packet size
+// usb_endpoint_type - gets the endpoint's supported transfer type
+int  assign_ep_address(struct usb_raw_ep_info *info, struct usb_endpoint_descriptor *ep) {
+	if (usb_endpoint_num(ep) != 0) return 0;
+	if (usb_endpoint_dir_in(ep) && !info->caps.dir_in) return 0;
+	if (usb_endpoint_dir_out(ep) && !info->caps.dir_out) return 0;
+	if (usb_endpoint_maxp(ep) > info->limits.maxpacket_limit) return 0;
+	// checks bmAttributes of the EP descriptor
+	switch (usb_endpoint_type(ep)) {
+		case USB_ENDPOINT_XFER_BULK:
+			if (!info->caps.type_bulk)
+				return 0;
+			break;
+		case USB_ENDPOINT_XFER_INT:
+			if (!info->caps.type_int)
+				return 0;
+			break;
+		default:
+			return 0;
+	}
+
+	// USB_RAW_EP_ADDR_ANY [0xFF] means that EP accepts ANY address
+	if (info->addr == USB_RAW_EP_ADDR_ANY) {
+		static int addr = 1;
+		ep->bEndpointAddress |= addr++;
+	} else
+		ep->bEndpointAddress |= info->addr;
+	return 1;
+}
+
+void endpoints_info(int fd) {
+	struct usb_raw_eps_info info = { 0 };
+
+	int eps = usb_raw_eps_info(fd, &info); // number of endpoints
+	for (int i = 0; i < eps; i++) {
+		fprintf(stdout, "ENDPOINT #%d:\n", i);
+		fprintf(stdout, "├── NAME:\t\t%s\n", &info.eps[i].name[0]);
+		fprintf(stdout, "├── ADDR:\t\t%u\n", info.eps[i].addr);
+		// endpoint's transfer type
+		fprintf(stdout, "├── TYPE:\t\t%s %s %s\n",
+			info.eps[i].caps.type_iso  ? "ISO" : "___",
+			info.eps[i].caps.type_bulk ? "BLK" : "___",
+			info.eps[i].caps.type_int  ? "INT" : "___");
+		// endpoint's direction (IN or OUT)
+		fprintf(stdout, "├── DIR:\t\t%s %s\n",
+			info.eps[i].caps.dir_in  ? "IN" : "___",
+			info.eps[i].caps.dir_out ? "OUT" : "___");
+		// maximum supported packet size
+		fprintf(stdout, "├── MAX PACKET LIMIT:\t%u\n",
+			info.eps[i].limits.maxpacket_limit);
+		// maximum number of streams
+		fprintf(stdout, "├── MAX STREAMS:\t%u\n", info.eps[i].limits.max_streams);
+		fprintf(stdout, "----------------------------------------\n");
+	}
+
+	for (int i = 0; i < eps; i++)
+		if (assign_ep_address(&info.eps[i], &usb_endpoint))
+			continue;
+
+	int ep_int_in_addr = usb_endpoint_num(&usb_endpoint); // get EP's address
+	if (ep_int_in_addr != 0) {
+		fprintf(stdout, "[i] EP_INT_IN: ADDR = %u ASSIGNED\n", ep_int_in_addr);
+		fprintf(stdout, "----------------------------------------\n");
+	}
+}
+
 void usb_loop(int fd) {
 	// endless loop
 	while (1) {
@@ -357,6 +513,16 @@ void usb_loop(int fd) {
 		// fetch event
 		usb_fetch(fd, (struct usb_raw_event *)&event);
 		event_log((struct usb_raw_event*)&event);
+
+		if (event.inner_event.type == USB_RAW_EVENT_CONNECT) {
+			endpoints_info(fd);
+			continue;
+		}
+
+		if (event.inner_event.type != USB_RAW_EVENT_CONTROL)
+			continue;
+
+
 	}
 }
 
