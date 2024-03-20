@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -23,7 +24,18 @@
 #define USB_RAW_IOCTL_INIT			_IOW('U', 0, struct usb_init)
 #define USB_RAW_IOCTL_RUN			_IO('U', 1)
 #define USB_RAW_IOCTL_EVENT_FETCH	_IOR('U', 2, struct usb_event)
+// - EP-related IOCTLs
 #define USB_RAW_IOCTL_EPS_INFO		_IOR('U', 11, struct usb_eps_info)
+#define USB_RAW_IOCTL_EP0_STALL		_IO('U', 12)
+#define USB_RAW_IOCTL_EP0_WRITE		_IOW('U', 3, struct usb_ep_io)
+#define USB_RAW_IOCTL_EP0_READ		_IOWR('U', 4, struct usb_ep_io)
+#define USB_RAW_IOCTL_EP_ENABLE		_IOW('U', 5, struct usb_endpoint_descriptor)
+#define USB_RAW_IOCTL_EP_DISABLE	_IOW('U', 6, __u32)
+#define USB_RAW_IOCTL_EP_WRITE		_IOW('U', 7, struct usb_ep_io)
+#define USB_RAW_IOCTL_EP_READ		_IOWR('U', 8, struct usb_ep_io)
+// - CONFIG-related IOCTLs
+#define USB_RAW_IOCTL_CONFIGURE		_IO('U', 9)
+#define USB_RAW_IOCTL_VBUS_DRAW		_IOW('U', 10, __u32)
 // - EP-related constants
 #define USB_RAW_EP_ADDR_ANY	0xff
 #define USB_RAW_EPS_NUM_MAX	30
@@ -48,9 +60,13 @@
 // - provide details about manufacturer, product, a serial number
 #define STRING_ID_MANUFACTURER	0
 #define STRING_ID_PRODUCT	1
-#define STRING_ID_SERIAL	2
+#define STRING_ID_SERIAL	23
 #define STRING_ID_CONFIG	3
 #define STRING_ID_INTERFACE	4
+// HID-related constants
+#define USB_HID_HID		0x21
+#define USB_HID_REPORT	0x22
+#define USB_HID_PHYS	0x23
 
 // for HID - Human Interface Devices 
 // https://elixir.bootlin.com/linux/latest/source/include/linux/hid.h#L725
@@ -60,11 +76,14 @@ struct hid_class_descriptor {
 } __attribute__ ((packed));
 
 // https://elixir.bootlin.com/linux/latest/source/include/linux/hid.h#L730
+// - [https://www.usb.org/sites/default/files/hid1_11.pdf p. 32 (Sec 6.2.1)]
+// - identifies lenght and type of subordinate descriptors for a device
 struct hid_descriptor {
-	__u8  	bLength;
+	__u8  	bLength; // descriptor's size
 	__u8 	bDescriptorType;
-	__le16 	bcdHID;
-	__u8  	bCountryCode;
+	__le16 	bcdHID; // HID Class specification version
+	__u8  	bCountryCode; // country code of the localized hardware
+	// number of class descriptors (at least 1 - Report descriptor)
 	__u8  	bNumDescriptors;
 
 	struct hid_class_descriptor desc[1];
@@ -145,29 +164,24 @@ struct usb_control_io {
 	char				data[EP0_MAX_DATA];
 };
 
-// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L407
-// - endpoint descriptor
-// - misses 2 fields (bRefresh and bSynchAddress used in audio)
-// - constants are from usb/ch9 from USB 2.0 specification
-struct usb_endpoint_descriptor usb_endpoint = {
-	.bLength =			USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType =	USB_DT_ENDPOINT,
-	.bEndpointAddress =	USB_DIR_IN | EP_NUM_INT_IN,
-	.bmAttributes =		USB_ENDPOINT_XFER_INT,	// interrupt endpoint type
-	.wMaxPacketSize =	EP_MAX_PACKET_INT,
-	.bInterval =		5,
+struct usb_int_io {
+	struct usb_ep_io	inner_io;
+	char				data[EP_MAX_PACKET_INT];
 };
 
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L286
+// - describes general information about a USB device
+// - high-speed device also needs device_qualifier descriptor
 struct usb_device_descriptor usb_device = {
-	.bLength =			USB_DT_DEVICE_SIZE,
+	.bLength =			USB_DT_DEVICE_SIZE,	// descriptor's size
 	.bDescriptorType =	USB_DT_DEVICE,
 	.bcdUSB =			__constant_cpu_to_le16(BCD_USB),
-	.bDeviceClass =		0,
-	.bDeviceSubClass =	0,
-	.bDeviceProtocol =	0,
-	.bMaxPacketSize0 =	EP_MAX_PACKET_CONTROL,
-	.idVendor =			__constant_cpu_to_le16(USB_VENDOR),
-	.idProduct =		__constant_cpu_to_le16(USB_PRODUCT),
+	.bDeviceClass =		0, // class code (if 0, interface specifies its own)
+	.bDeviceSubClass =	0, // subclass code (if class code 0, this needs to be 0 as well)
+	.bDeviceProtocol =	0, // class-specific protocol code
+	.bMaxPacketSize0 =	EP_MAX_PACKET_CONTROL, // max packet size for EP0 [only valid: 8/16/32/64]
+	.idVendor =			__constant_cpu_to_le16(USB_VENDOR),  // assigned by USB-IF
+	.idProduct =		__constant_cpu_to_le16(USB_PRODUCT), // assigned by manufacturer
 	.bcdDevice =		0,
 	.iManufacturer =	STRING_ID_MANUFACTURER,
 	.iProduct =			STRING_ID_PRODUCT,
@@ -175,29 +189,69 @@ struct usb_device_descriptor usb_device = {
 	.bNumConfigurations =	1,
 };
 
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L346
+// - describes information about a specific device configuration
+// - device has one or more such descriptors
+// - each configuration has one or more interfaces
+// - each interface has zero or more endpoints
 struct usb_config_descriptor usb_config = {
-	.bLength =			USB_DT_CONFIG_SIZE,
+	.bLength =			USB_DT_CONFIG_SIZE, // descriptor's size
 	.bDescriptorType =	USB_DT_CONFIG,
-	.wTotalLength =		0,  // computed later
-	.bNumInterfaces =	1,
-	.bConfigurationValue =	1,
+	// total length gets computed later
+	// - it is total length of data returned for specified configuration
+	// - includes: combined length of ALL descriptors (configuration, interface, endpoint, AND
+	// class/vendor-specific)
+	.wTotalLength =		0, 
+	.bNumInterfaces =	1, 	// number of interfaces
+	.bConfigurationValue =	1,	// value causes device to assume the described configuration
 	.iConfiguration = 	STRING_ID_CONFIG,
+	// bitmap: configuration characteristics
 	.bmAttributes =		USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
-	.bMaxPower =		0x32,
+	.bMaxPower =		0x32, // maximum power consumption of the device in this configuration
 };
 
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L389
+// - describes a specific interface within a configuration
+// - has zero or more endpoint descriptors (without EP0)
+// - always returned as part of the configuration descriptor (interface desc. cannot be
+// directly accessed)
+// - SetInterface()/GetInterface() work only with alternative interfaces
 struct usb_interface_descriptor usb_interface = {
-	.bLength =				USB_DT_INTERFACE_SIZE,
+	.bLength =				USB_DT_INTERFACE_SIZE,	// descriptor's size
 	.bDescriptorType =		USB_DT_INTERFACE,
-	.bInterfaceNumber =		0,
-	.bAlternateSetting = 	0,
-	.bNumEndpoints =		1,
-	.bInterfaceClass =		USB_CLASS_HID,
-	.bInterfaceSubClass =	1,
-	.bInterfaceProtocol =	1,
+	.bInterfaceNumber =		0, // interface's number: index in the array of supported interfaces
+	.bAlternateSetting = 	0, // value specifies alternate setting for the interface
+	.bNumEndpoints =		1, // number of endpoints (if 0, interface only uses Default Control Pipe)
+	.bInterfaceClass =		USB_CLASS_HID, // class code
+	.bInterfaceSubClass =	1, // subclass code
+	.bInterfaceProtocol =	1, // subclass/class-specific protocol code
 	.iInterface =			STRING_ID_INTERFACE,
 };
 
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L407
+// - describes information about the bandwidth requirements of the endpoint
+// - always returned as part of the configuration information
+// - cannot be directly accessed 
+// - EP0 has no descriptor
+// - misses 2 fields (bRefresh and bSynchAddress used in audio)
+struct usb_endpoint_descriptor usb_endpoint = {
+	.bLength =			USB_DT_ENDPOINT_SIZE, // descriptor's size
+	.bDescriptorType =	USB_DT_ENDPOINT,
+	// encoded address of EP on the USB device
+	.bEndpointAddress =	USB_DIR_IN | EP_NUM_INT_IN,
+	// bitmap: endpoint's transfer type (with ISOsynchronous transfers + synchro type and usage type added)
+	.bmAttributes =		USB_ENDPOINT_XFER_INT,	// interrupt endpoint type
+	// maximum packet size this EP is capable of sending/receiving
+	.wMaxPacketSize =	EP_MAX_PACKET_INT,
+	// interval for polling EP for data transfers
+	// - expressed in FRAMES/microFRAMES (depending on the device's speed)
+	.bInterval =		5,
+};
+
+// https://www.usb.org/sites/default/files/hid1_11.pdf
+// - HID report descriptor
+// - describes device's capabilities  (https://docs.kernel.org/hid/hidintro.html)
+// - hexdump -C /sys/bus/hid/devices/{{ id }}/report_descriptor
 char usb_hid_report[] = {
 	0x05, 0x01,                    // Usage Page (Generic Desktop)        0
 	0x09, 0x06,                    // Usage (Keyboard)                    2
@@ -230,7 +284,7 @@ char usb_hid_report[] = {
 	0x19, 0x00,                    //  Usage Minimum (0)                  57
 	0x2a, 0xff, 0x00,              //  Usage Maximum (255)                59
 	0x81, 0x00,                    //  Input (Data,Arr,Abs)               62
-	0xc0,                          //  End Collection                      64
+	0xc0,                          // End Collection                      64
 };
 
 struct hid_descriptor usb_hid = {
@@ -459,7 +513,7 @@ void ctrl_log(struct usb_ctrlrequest *event) {
 			}
 			break;
 		case USB_TYPE_CLASS:
-			fprintf(stdout, "\t\t\tUSB_TYPE_CLASS\n");
+			fprintf(stdout, "\t\t\tUSB_TYPE_CLASS\n\t\t\t");
 			switch (event->bRequest) {
 				case HID_REQ_GET_REPORT:
 					fprintf(stdout, "├── HID_REQ_GET_REPORT\n");
@@ -485,10 +539,10 @@ void ctrl_log(struct usb_ctrlrequest *event) {
 			}
 			break;
 		case USB_TYPE_VENDOR:
-			fprintf(stdout, "\t\t\tUSB_TYPE_VENDOR\n");
+			fprintf(stdout, "\t\t\tUSB_TYPE_VENDOR\n\t\t\t");
 			break;
 		case USB_TYPE_RESERVED:
-			fprintf(stdout, "\t\t\tUSB_TYPE_RESERVED\n");
+			fprintf(stdout, "\t\t\tUSB_TYPE_RESERVED\n\t\t\t");
 			break;
 		default:
 			fprintf(stdout, "\t\t\tUNKNOWN TYPE = 0x%x\n", event->bRequestType);
@@ -512,11 +566,12 @@ void ctrl_log(struct usb_ctrlrequest *event) {
 			fprintf(stdout, "\t\t\tUNKNOWN RECIP  = %d\n", (int)event->bRequestType);
 			break;
 	}
-	fprintf(stdout, "    ----------------------------------------------------------------------------\n");
+	// fprintf(stdout, "    ----------------------------------------------------------------------------\n");
 }
 
 void event_log(struct usb_event *event) {
-	fprintf(stdout, "[i] EVENT TYPE: %d, LENGTH: %u\n", event->type, event->length);
+	// fprintf(stdout, "[i] EVENT TYPE: %d, LENGTH: %u\n", event->type, event->length);
+	fprintf(stdout, "\n");
 	switch (event->type) {
 		case USB_RAW_EVENT_INVALID:
 			fprintf(stdout, "[i] USB_RAW_EVENT_INVALID fetched\n");
@@ -547,13 +602,95 @@ void event_log(struct usb_event *event) {
 }
 
 // queries information about non-control endpoints for current UDC
-int usb_raw_eps_info(int fd, struct usb_eps_info *info) {
+int usb_eps_info(int fd, struct usb_eps_info *info) {
 	int result = ioctl(fd, USB_RAW_IOCTL_EPS_INFO, info);
 	
 	if (result  < 0)
 		fprintf(stderr, "[-] USB_RAW_IOCTL_EPS_INFO failed with %d\n", result);
 
 	return result;
+}
+
+int usb_ep0_read(int fd, struct usb_ep_io *io) {
+	int result  = ioctl(fd, USB_RAW_IOCTL_EP0_READ, io);
+
+	if (result < 0) {
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EP0_READ failed with %d\n", result);
+		return 0;
+	}
+
+	return result;
+}
+
+int usb_ep0_write(int fd, struct usb_ep_io *io) {
+	int result = ioctl(fd, USB_RAW_IOCTL_EP0_WRITE, io);
+	
+	if (result < 0) {
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EP0_WRITE failed with %d\n", result);
+		return 0;
+	}
+
+	return result;
+}
+
+int usb_ep_enable(int fd, struct usb_endpoint_descriptor *desc) {
+	int result = ioctl(fd, USB_RAW_IOCTL_EP_ENABLE, desc);
+
+	if (result < 0) {
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EP_ENABLE failed with %d\n", result);
+		return 0;
+	}
+
+	return result;
+}
+
+int usb_ep_disable(int fd, int ep) {
+	int result = ioctl(fd, USB_RAW_IOCTL_EP_DISABLE, ep);
+
+	if (result < 0) {
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EP_DISABLE failed with %d\n", result);
+		return 0;
+	}
+
+	return result;
+}
+
+int usb_ep_read(int fd, struct usb_ep_io *io) {
+	int result = ioctl(fd, USB_RAW_IOCTL_EP_READ, io);
+
+	if (result < 0) {
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EP_READ failed with %d\n", result);
+		return 0;
+	}
+
+	return result;
+}
+
+int usb_ep_write(int fd, struct usb_ep_io *io) {
+	int result  = ioctl(fd, USB_RAW_IOCTL_EP_WRITE, io);
+
+	if (result < 0) {
+		fprintf(stderr, "[-] USB_RAW_IOCTL_EP_WRITE failed with %d\n", result);
+		return 0;
+	}
+
+	return result;
+}
+
+int usb_ep_write_may_fail(int fd, struct usb_ep_io *io) {
+	return ioctl(fd, USB_RAW_IOCTL_EP_WRITE, io);
+}
+
+void usb_configure(int fd) {
+	int result  = ioctl(fd, USB_RAW_IOCTL_CONFIGURE, 0);
+
+	if (result < 0) fprintf(stderr, "[-] USB_RAW_IOCTL_CONFIGURE failed with %d\n", result);
+}
+
+void usb_vbus_draw(int fd, uint32_t power) {
+	int result = ioctl(fd, USB_RAW_IOCTL_VBUS_DRAW, power);
+
+	if (result < 0) fprintf(stderr, "[-] USB_RAW_IOCTL_VBUS_DRAW failed with %d\n", result);
 }
 
 // all functions defined in:
@@ -591,10 +728,20 @@ int  assign_ep_address(struct usb_ep_info *info, struct usb_endpoint_descriptor 
 	return 1;
 }
 
+// halted EP0: host needs 'recovery action' to resume the endpoint
+void endpoint_stall(int fd) {
+	int result = ioctl(fd, USB_RAW_IOCTL_EP0_STALL, 0);
+
+	if (result < 0) fprintf(stderr, "[-] USB_RAW_IOCTL_EP0_STALL failed with %d\n", result);
+	
+	fprintf(stdout, "[i] EP0 bump\n");
+}
+
 void endpoints_info(int fd) {
 	struct usb_eps_info info = { 0 };
 
-	int eps = usb_raw_eps_info(fd, &info); // number of endpoints
+	int eps = usb_eps_info(fd, &info); // number of endpoints
+	/*
 	for (int i = 0; i < eps; i++) {
 		fprintf(stdout, "ENDPOINT #%d:\n", i);
 		fprintf(stdout, "├── NAME:\t\t%s\n", &info.eps[i].name[0]);
@@ -615,7 +762,7 @@ void endpoints_info(int fd) {
 		fprintf(stdout, "├── MAX STREAMS:\t%u\n", info.eps[i].limits.max_streams);
 		fprintf(stdout, "----------------------------------------\n");
 	}
-
+	*/
 	for (int i = 0; i < eps; i++)
 		if (assign_ep_address(&info.eps[i], &usb_endpoint))
 			continue;
@@ -627,6 +774,9 @@ void endpoints_info(int fd) {
 	}
 }
 
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L338
+// - builds configuration descriptor
+// - wTotalLength = total length (#B) including interface and endpoint descriptors
 int build_config(char *data, int length) {
 	struct usb_config_descriptor *config = (struct usb_config_descriptor *)data;
 	int total_length = 0;
@@ -661,8 +811,49 @@ int build_config(char *data, int length) {
 
 	config->wTotalLength = __cpu_to_le16(total_length);
 	fprintf(stdout, "[i] config->wTotalLength: %d\n", total_length);
-
 	return total_length;
+}
+
+int ep_int_in = -1;
+pthread_t ep_int_in_thread;
+int ep_int_in_thread_spawned = 0;
+
+void *ep_int_in_loop(void *arg) {
+	fprintf(stdout, "[i] RUNNING IN LOOP\n");
+	int fd = (int)(long)arg;
+	struct usb_int_io io;
+	io.inner_io.ep = ep_int_in;
+	io.inner_io.flags = 0;
+	io.inner_io.length = 8;
+
+	while (1) {
+		memcpy(&io.inner_io.data[0], "\x00\x00\x1b\x00\x00\x00\x00\x00", 8);
+		int result = usb_ep_write_may_fail(fd, (struct usb_ep_io *)&io);
+
+		if (result < 0 && errno == ESHUTDOWN) {
+			fprintf(stdout, "[i] ep_int_in: device was likely reset, exiting\n");
+			break;
+		} else if (result < 0) {
+			perror("usb_ep_write_may_fail()");
+			return NULL;
+		}
+		fprintf(stdout, "ep_int_in: key down: %d\n", result);
+
+		memcpy(&io.inner_io.data[0], "\x00\x00\x00\x00\x00\x00\x00\x00", 8);
+		result = usb_ep_write_may_fail(fd, (struct usb_ep_io *)&io);
+		if (result < 0 && errno == ESHUTDOWN) {
+			fprintf(stdout, "[i] ep_int_in: device was likely reset, exiting\n");
+			return NULL;
+		} else if (result < 0) {
+			fprintf(stderr, "[i] usb_ep_write_may_fail()");
+			return NULL;
+		}
+		fprintf(stdout, "[i] ep_int_in: key up: %d\n", result);
+
+		sleep(1);
+	}
+
+	return NULL;
 }
 
 // from [https://www.usbmadesimple.co.uk/ums_4.htm]
@@ -672,26 +863,30 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 	// determine request type
 	switch (event->ctrl.bRequestType & USB_TYPE_MASK) {
 		case USB_TYPE_STANDARD:
-			fprintf(stdout, "\tUSB_TYPE_STANDARD\n");
+			fprintf(stdout, "\n    USB_TYPE_STANDARD ⟶  ");
 			// determine STANDARD request type (out of 8)
 			switch (event->ctrl.bRequest) {
 				// GET DESCRIPTOR: first to receive
 				// - host needs to know MAX_PACKET_SIZE
 				case USB_REQ_GET_DESCRIPTOR:
+					fprintf(stdout, "USB_REQ_GET_DESCRIPTOR ⟶  ");
 					// determine descriptor TYPE (based on wValues)
 					// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L235
 					switch (event->ctrl.wValue >> 8) {
 						// device descriptor
 						case USB_DT_DEVICE:
+							fprintf(stdout, "USB_DT_DEVICE\n");
 							memcpy(&io->data[0], &usb_device, sizeof(usb_device));
 							io->inner_io.length = sizeof(usb_device);
 							return 1;
 						// configuration descriptor
 						case USB_DT_CONFIG:
+							fprintf(stdout, "USB_DT_CONFIG\n");
 							io->inner_io.length = build_config(&io->data[0], sizeof(io->data));
 							return 1;
 						// string descriptor
 						case USB_DT_STRING:
+							fprintf(stdout, "USB_DT_STRING\n");
 							io->data[0] = 4;
 							io->data[1] = USB_DT_STRING;
 							if ((event->ctrl.wValue & 0xff) == 0) {
@@ -703,6 +898,11 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 							}
 							io->inner_io.length = 4;
 							return 1;
+						case HID_DT_REPORT: 
+							fprintf(stdout, "HID_DT_REPORT\n");
+							memcpy(&io->data[0], &usb_hid_report[0], sizeof(usb_hid_report));
+							io->inner_io.length = sizeof(usb_hid_report);
+							return 1;
 						default:
 							fprintf(stderr, "[-] FAILURE: no response\n");
 							return 0;
@@ -710,14 +910,33 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 					break;
 				// when host queries previously set configuration
 				case USB_REQ_GET_CONFIGURATION:
+					fprintf(stdout, "USB_REQ_GET_CONFIGURATION\n");
 					io->inner_io.length = build_config(&io->data[0], sizeof(io->data));
 					return 1;
 				// when driver tries to configure the device
 				// usually wValue == 1 (selects 1st config)
 				// if wValue == 0, device should be deconfigured
 				case USB_REQ_SET_CONFIGURATION:
-					// TO-DO
-					return 0;
+ 					fprintf(stdout, "USB_REQ_SET_CONFIGURATION\n");
+					ep_int_in = usb_ep_enable(fd, &usb_endpoint);
+					fprintf(stdout, "\t ├── EP0: ep_int_in enabled: %d\n", ep_int_in);
+					// spawns new thread
+					// - invokes ep_int_in_loop as its start_routine() with fd as arg
+					// - thread terminates if it calls pthread_exit(),  returns from
+					// start_routine(), main thread exits(), or gets canceled
+					int result = pthread_create(&ep_int_in_thread, 0, ep_int_in_loop, (void *)(long)fd);
+					if (result != 0) {
+						fprintf(stderr, "[-] UNABLE TO CRETE THREAD (ep_int_in)");
+						return 0;
+					}
+					ep_int_in_thread_spawned =  1;
+					fprintf(stdout, "[+] EP0: SPAWNED THREAD (ep_int_in)\n");
+					usb_vbus_draw(fd, usb_config.bMaxPower);
+					usb_configure(fd);
+					io->inner_io.length = 0;
+					// when new HID device (e.g., keyboard) is added, it is firstly managed by 
+					// /drivers/hid/hid-core.c --> hid_add_device()
+					return 1;
 				case USB_REQ_SET_INTERFACE:
 					io->inner_io.length = 0;
 					return 1;
@@ -731,10 +950,28 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 			}
 			break;
 		case USB_TYPE_CLASS:
-			// TO-DO
+			switch (event->ctrl.bRequest) {
+				case HID_REQ_SET_REPORT:
+					// This is an OUT request, so don't initialize data.
+					io->inner_io.length = 1;
+					return 1;
+				case HID_REQ_SET_IDLE:
+					io->inner_io.length = 0;
+					return 1;
+				case HID_REQ_SET_PROTOCOL:
+					io->inner_io.length = 0;
+					return 1;
+				default:
+					fprintf(stderr, "[-] FAILURE: no response\n");
+					return 0;
+			}
 			break;
 		case USB_TYPE_VENDOR:
-			// TO-DO
+			switch (event->ctrl.bRequest) {
+				default:
+					fprintf(stderr, "[-] FAILURE: no response\n");
+					return 0;
+				}
 			break;
 		default:
 			fprintf(stderr, "[-] FAILURE: no response\n");
@@ -783,7 +1020,23 @@ void usb_loop(int fd) {
 		io.inner_io.length 	= 0;
 
 		int reply = setup_request(fd, &event, &io);
-		fprintf(stdout, "[i] response: %d\n", reply);
+		if (!reply) {
+			fprintf(stderr, "[-] EP0 HALTED\n");
+			endpoint_stall(fd);
+			continue;
+		}
+
+		if (event.ctrl.wLength < io.inner_io.length)
+			io.inner_io.length = event.ctrl.wLength;
+
+		if (event.ctrl.bRequestType & USB_DIR_IN) {
+			int rv = usb_ep0_write(fd, (struct usb_ep_io *)&io);
+			fprintf(stdout, "[i] EP0: transferred %d bytes (in)\n", rv);
+		} else {
+			int rv = usb_ep0_read(fd, (struct usb_ep_io *)&io);
+			fprintf(stdout, "[i] EP0: transferred %d bytes (out)\n", rv);
+		}
+
 	}
 }
 
