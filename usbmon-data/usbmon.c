@@ -1,7 +1,7 @@
 /**
  * usbmon.c - program that collects the raw USB data that is traced by usbmon kernel module
- * in a binary format. it interacts with a device file (/dev/usbmon3). usbmon kernel module
- * needs to be insmoded.
+ * in a binary format. it interacts with a device file (e.g., /dev/usbmon3). usbmon kernel
+ * module needs to be insmoded beforehand (with 'sudo modprobe usbmon')
  *
  * program needs to be run with root privileges.
  *
@@ -29,7 +29,7 @@
 #define DATA_LEN            1024
 #define MAX_EVENTS          32
 // /dev/usbmonN - N = the USB bus number
-#define CHAR_DEVICE         "/dev/usbmon3"
+#define CHAR_DEVICE         "/dev/usbmon0"
 
 #define MON_IOC_MAGIC		0x92
 #define MON_IOCQ_URB_LEN	_IO(MON_IOC_MAGIC, 1)
@@ -47,28 +47,24 @@ typedef int64_t s64;
 typedef int32_t s32;
 
 struct mon_mfetch_arg {
-      uint32_t *offvec;       /* Vector of events fetched */
-      uint32_t nfetch;        /* Number of events to fetch (out: fetched) */
-      uint32_t nflush;        /* Number of events to flush */
+      uint32_t *offvec;       /* offsets of events fetched */
+      uint32_t nfetch;        /* number of events to fetch */
+      uint32_t nflush;        /* number of events to flush */
 };
 
-// hdr - next event struct
-// data - data (if any)
 struct mon_get_arg {
       struct usbmon_packet *hdr;
       void *data;
-      size_t alloc;           /* Length of data (can be zero) */
+      size_t alloc;           /* length of data (can be zero) */
 };
 
-// queued:  number of events currently queued in the buffer
-// dropped: number of events lost since last call
 struct mon_bin_stats {
-      u32 queued;
-      u32 dropped;
+      u32 queued;             /* number of events currently queued in the buffer */
+      u32 dropped;            /* number of events lost since last call */
 };
 
 // usbmon_packet structure
-// [https://docs.kernel.org/usb/usbmon.html#raw-binary-format-and-api]
+// from: [https://docs.kernel.org/usb/usbmon.html#raw-binary-format-and-api]
 struct usbmon_packet {
     u64 id;                   /*  0: URB ID - from submission to callback */
     unsigned char type;       /*  8: Same as text; extensible. */
@@ -85,10 +81,10 @@ struct usbmon_packet {
     unsigned int len_cap;     /* 36: Delivered length */
     union {                   /* 40: */
         unsigned char setup[SETUP_LEN]; /* Only for Control S-type */
-            struct iso_rec {            /* Only for ISO */
-                int error_count;
-                int numdesc;
-            } iso;
+        struct iso_rec {            /* Only for ISO */
+            int error_count;
+            int numdesc;
+        } iso;
     } s;
     int interval;             /* 48: Only for Interrupt and ISO */
     int start_frame;          /* 52: For ISO */
@@ -97,7 +93,21 @@ struct usbmon_packet {
 };                            /* 64 total length */
 
 void process_packet(struct usbmon_packet *hdr) {
-    fprintf(stdout, "ID: %lu, Type: %c, Length Captured: %u\n", hdr->id, hdr->type, hdr->len_cap);
+    fprintf(stdout, "ID: %p, TYPE: 0x%02x, TRANSFER TYPE: 0x%02x, ENDPOINT: 0x%02x, DIR: 0x%02x, "
+            "DEVICE: 0x%02x, BUS: 0x%02x, DATA: 0x%02x, STATUS: 0x%08x, URB LEN: 0x%08x, "
+            "DATA LENGTH: 0x%08x, TRANSFER FLAGS: 0x%08x\n",
+            (void *)hdr->id,
+            hdr->type,
+            hdr->xfer_type,
+            hdr->epnum,
+            hdr->epnum & USB_DIR_IN ? 1 : 0,
+            hdr->devnum,
+            hdr->busnum,
+            hdr->flag_data,
+            hdr->status,
+            hdr->length,
+            hdr->len_cap,
+            hdr->xfer_flags);
 }
 
 int main() {
@@ -132,6 +142,7 @@ int main() {
         return 1;
     }
 
+    // allocate memory for events offsets 
     fetch.offvec = (uint32_t*)malloc(MAX_EVENTS * sizeof(uint32_t));
     if (!fetch.offvec) {
         fprintf(stderr, "[-] malloc for fetch.offvec failed");
@@ -149,10 +160,10 @@ int main() {
         fetch.nflush = nflush;
         ioctl(fd, MON_IOCX_MFETCH, &fetch);
         nflush = fetch.nfetch;
+        // fprintf(stdout, "[i] nfetch=%d nflush=%d\n", fetch.nfetch, fetch.nflush); 
 
-        fprintf(stdout, "[i] nfetch=%d nflush=%d\n", fetch.nfetch, fetch.nflush); 
         for (unsigned int i = 0; i < nflush; i++) {
-            fprintf(stdout, "[i] offset %u, %u\n", i, fetch.offvec[i]);
+            // fprintf(stdout, "[i] offset %u, %u\n", i, fetch.offvec[i]);
             struct usbmon_packet* hdr = (struct usbmon_packet*)((char*)buffer + fetch.offvec[i]);
             process_packet(hdr);
         }
