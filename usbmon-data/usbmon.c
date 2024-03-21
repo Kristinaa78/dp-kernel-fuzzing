@@ -92,7 +92,7 @@ struct usbmon_packet {
     unsigned int ndesc;       /* 60: Actual number of ISO descriptors */
 };                            /* 64 total length */
 
-void process_packet(struct usbmon_packet *hdr) {
+void process_packet(struct usbmon_packet *hdr, void *data) {
     fprintf(stdout, "ID: %p, TYPE: 0x%02x, TRANSFER TYPE: 0x%02x, ENDPOINT: 0x%02x, DIR: 0x%02x, "
             "DEVICE: 0x%02x, BUS: 0x%02x, DATA: 0x%02x, STATUS: 0x%08x, URB LEN: 0x%08x, "
             "DATA LENGTH: 0x%08x, TRANSFER FLAGS: 0x%08x\n",
@@ -108,6 +108,10 @@ void process_packet(struct usbmon_packet *hdr) {
             hdr->length,
             hdr->len_cap,
             hdr->xfer_flags);
+    fprintf(stdout, "DATA: ");
+    for (int i = 0; i < hdr->len_cap; i++)
+      fprintf(stdout, "0x%02x ", ((unsigned char *)data)[i]);
+    fprintf(stdout, "\n");
 }
 
 int main() {
@@ -165,7 +169,8 @@ int main() {
         for (unsigned int i = 0; i < nflush; i++) {
             // fprintf(stdout, "[i] offset %u, %u\n", i, fetch.offvec[i]);
             struct usbmon_packet* hdr = (struct usbmon_packet*)((char*)buffer + fetch.offvec[i]);
-            process_packet(hdr);
+            void *data = (void*)((char*)buffer + fetch.offvec[i] + 64);
+            if (hdr->len_cap) process_packet(hdr, data);
         }
     }
 
