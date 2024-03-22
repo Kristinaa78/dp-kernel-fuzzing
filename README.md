@@ -27,15 +27,15 @@ Binary data is captured and stored in binary files. From all the `usbmon_packet`
 
 ```
 struct custom_usb {
-    uint8_t  type;
-    uint8_t  xfer_type;
-    uint8_t  epnum;
-    uint8_t  devnum;
-    uint16_t busnum;
-    char     flag_data;
-    int32_t  status;
-    uint32_t length;
-    uint32_t len_cap;
-    uint32_t xfer_flags;
+    uint8_t     type;           // event type ([S]ubmission/[C]allback/[E]rror)
+    uint8_t     xfer_type;      // transfer type
+    uint8_t     epnum;          // endpoint number/direction
+    uint8_t     devnum;         // device address
+    uint16_t    busnum;         // bus number
+    char        flag_data;      // if data is present
+    int32_t     status;         // URB status
+    uint32_t    length;         // length of data
+    uint32_t    len_cap;        // delivered length
+    uint32_t    xfer_flags;     // copy of URB's transfer flags
 };
 ```
