@@ -98,8 +98,8 @@ struct custom_usb {
     uint8_t  epnum;
     uint8_t  devnum;
     uint16_t busnum;
-    char flag_data;
-    int32_t status;
+    char     flag_data;
+    int32_t  status;
     uint32_t length;
     uint32_t len_cap;
     uint32_t xfer_flags;
@@ -144,23 +144,24 @@ void process_packet(struct usbmon_packet *hdr, void *data, FILE* result) {
     fflush(result);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     int fd, nflush = 3, N = 3,  buffer_size = 0;
     void *buffer;
     struct mon_mfetch_arg fetch = { 0 };
     FILE* result;
 
     // open output file
-    result = fopen("usbmon_data_drive.txt", "w");
+    result = fopen("usbmon_data.txt", "w");
     if (result == NULL) {
         fprintf(stderr, "[-] unable to open usbmon_data.txt\n"); 
         return 1;
     }    
 
     // open usbmon character device for reading
-    fd = open(CHAR_DEVICE, O_RDONLY);
+    if (argc > 1) fd = open(argv[1], O_RDONLY); 
+    else fd = open(CHAR_DEVICE, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "[-] unable to open %s\n", CHAR_DEVICE); 
+        fprintf(stderr, "[-] unable to open %s\n", argc > 1 ? argv[1] : CHAR_DEVICE); 
         perror("[i] error: ");    
         return 1;
     }
