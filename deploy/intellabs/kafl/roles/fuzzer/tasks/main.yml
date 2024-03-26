@@ -14,13 +14,35 @@
     - python3-venv
     - python3-setuptools
 
-- name: Clone repo
+- name: Clone repo "{{ fuzzer_url }}"
   ansible.builtin.git:
     repo: "{{ fuzzer_url }}"
     dest: "{{ fuzzer_root }}"
-    version: "{{ fuzzer_revision | default('master') }}"
+    version: "kAFL-fuzzer"
     depth: "{{ git_clone_depth | default(omit) }}"
+    key_file: "~/.ssh/ansible"
     force: "{{ force_clone }}"
+  tags:
+    - clone
+
+- name: Remove .git directory from "{{ fuzzer_root }}"
+  ansible.builtin.file:
+    path: "{{ fuzzer_root }}/.git"
+    state: absent
+  tags:
+    - clone
+
+- name: Remove .gitignore file from "{{ fuzzer_root }}"
+  ansible.builtin.file:
+    path: "{{ fuzzer_root }}/.gitignore"
+    state: absent
+  tags:
+    - clone
+
+- name: Remove .gitmodules file from "{{ fuzzer_root }}"
+  ansible.builtin.file:
+    path: "{{ fuzzer_root }}/.gitmodules"
+    state: absent
   tags:
     - clone
 
