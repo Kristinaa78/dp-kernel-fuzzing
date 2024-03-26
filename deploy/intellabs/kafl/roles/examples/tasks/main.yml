@@ -1,11 +1,33 @@
-- name: Clone repo
+- name: Clone repo "{{ examples_url }}"
   ansible.builtin.git:
     repo: "{{ examples_url }}"
     dest: "{{ examples_root }}"
-    version: "{{ examples_revision | default(omit) }}"
+    version: "kAFL-targets"
     depth: "{{ git_clone_depth | default(omit) }}"
     force: "{{ force_clone }}"
+    key_file: "~/.ssh/ansible"
     recursive: false
+  tags:
+    - clone
+
+- name: Remove .git directory from "{{ examples_root }}"
+  ansible.builtin.file:
+    path: "{{ examples_root }}/.git"
+    state: absent
+  tags:
+    - clone
+
+- name: Remove .gitignore file from "{{ examples_root }}"
+  ansible.builtin.file:
+    path: "{{ examples_root }}/.gitignore"
+    state: absent
+  tags:
+    - clone
+
+- name: Remove .gitmodules file from "{{ examples_root }}"
+  ansible.builtin.file:
+    path: "{{ examples_root }}/.gitmodules"
+    state: absent
   tags:
     - clone
 
