@@ -39,6 +39,10 @@ ifdef DVKM_KASAN
 	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable KASAN
 	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable KASAN_INLINE
 endif
+ifdef USB_FUZZING
+	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable USB_RAW_GADGET
+	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable USB_DUMMY_HCD
+endif
 	$(MAKE) -C $(LINUX_AGENT_DIR) olddefconfig
 	$(MAKE) -C $(LINUX_AGENT_DIR) -j $(shell nproc)
 
