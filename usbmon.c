@@ -31,6 +31,7 @@
 #define DATA_LEN            1024
 #define MAX_EVENTS          32
 #define CHAR_DEVICE         "/dev/usbmon0"
+#define OUTPUT_FILE         "usbmon_data.txt"
 
 #define MON_IOC_MAGIC		0x92
 #define MON_IOCQ_URB_LEN	_IO(MON_IOC_MAGIC, 1)
@@ -150,22 +151,24 @@ int main(int argc, char* argv[]) {
     struct mon_mfetch_arg fetch = { 0 };
     FILE* result;
 
-    // open output file
-    result = fopen("usbmon_data.txt", "w");
-    if (result == NULL) {
-        fprintf(stderr, "[-] unable to open usbmon_data.txt\n"); 
-        return 1;
-    }    
-
     // open usbmon character device for reading
-    if (argc > 1) fd = open(argv[1], O_RDONLY); 
+    if (argc == 2) fd = open(argv[1], O_RDONLY); 
     else fd = open(CHAR_DEVICE, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "[-] unable to open %s\n", argc > 1 ? argv[1] : CHAR_DEVICE); 
+        fprintf(stderr, "[-] unable to open %s\n", argc == 2 ? argv[1] : CHAR_DEVICE); 
+        perror("[i] error: ");    
+        return 1;
+    }  
+
+    // open output file
+    if (argc == 3) result = fopen(argv[2], "w");
+    else result = fopen("usbmon_data90.txt", "w");
+    if (result == NULL) {
+        fprintf(stderr, "[-] unable to open %s\n", argc == 3 ? argv[2] : OUTPUT_FILE); 
         perror("[i] error: ");    
         return 1;
     }
-
+    
     // query the current size of the buffer in bytes:
     buffer_size = ioctl(fd, MON_IOCQ_RING_SIZE);
     if (buffer_size <= 0) {
