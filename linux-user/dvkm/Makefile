@@ -12,14 +12,18 @@ KAFL_INITRD_PATH := $(GEN_INITRD_DIR)/kafl_initrd.cpio.gz
 # dvkm.ko
 DVKM_DIR := $(MAKEF_DIR)/Damn_Vulnerable_Kernel_Module
 DVKM_PATH := $(DVKM_DIR)/dvkm.ko
+# usb fuzzer
+USB_DIR := $(MAKEF_DIR)/usb
+TEST_USB_PATH := $(USB_DIR)/sampleUSB
 
 # depend on
 # - kafl_initrd.cpio.gz in linux-user/scripts/
 # - dvkm.ko
-all: $(KAFL_INITRD_PATH) $(LINUX_AGENT_BZIMAGE) $(DVKM_PATH)
+all: $(KAFL_INITRD_PATH) $(LINUX_AGENT_BZIMAGE) $(DVKM_PATH) $(TEST_USB_PATH)
 	$(MAKE) -C $(GEN_INITRD_DIR)
 	ln -sf ../Damn_Vulnerable_Kernel_Module/dvkm.ko $(MAKEF_DIR)/sharedir/dvkm.ko
 	ln -sf ../Damn_Vulnerable_Kernel_Module/test_dvkm $(MAKEF_DIR)/sharedir/fuzz_dvkm
+	ln -sf ../usb/sampleUSB $(MAKEF_DIR)/sharedir/sampleUSB
 
 clean:
 	$(MAKE) -C $(GEN_INITRD_DIR) $@
@@ -53,5 +57,9 @@ $(KAFL_INITRD_PATH):
 # how to build dvkm.ko
 $(DVKM_PATH):
 	cd $(DVKM_DIR) && KRN_SOURCES=$(LINUX_AGENT_DIR) $(MAKE)
+
+# how to build USB raw gadget test device <sampleUSB.c>
+$(TEST_USB_PATH):
+	cd $(USB_DIR) && KRN_SOURCES=$(LINUX_AGENT_DIR) $(MAKE)
 
 .PHONY: clean fuzz
