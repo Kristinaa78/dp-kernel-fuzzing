@@ -27,7 +27,7 @@ all: $(KAFL_INITRD_PATH) $(LINUX_AGENT_BZIMAGE) $(DVKM_PATH) $(TEST_USB_PATH)
 
 clean:
 	$(MAKE) -C $(GEN_INITRD_DIR) $@
-	$(MAKE) -C $(DVKM_DIR) $@
+	# $(MAKE) -C $(DVKM_DIR) $@
 	$(MAKE) -C $(LINUX_AGENT_DIR) $@
 
 fuzz: all
@@ -44,6 +44,7 @@ ifdef DVKM_KASAN
 	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable KASAN_INLINE
 endif
 ifdef USB_FUZZING
+	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable USB_GADGET
 	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable USB_RAW_GADGET
 	cd $(LINUX_AGENT_DIR) && ./scripts/config --enable USB_DUMMY_HCD
 endif
