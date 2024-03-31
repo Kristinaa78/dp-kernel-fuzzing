@@ -18,7 +18,7 @@ FUZZ_USB_PATH := $(USB_DIR)/fuzzer
 # - kafl_initrd.cpio.gz in linux-user/scripts/
 all: $(KAFL_INITRD_PATH) $(LINUX_AGENT_BZIMAGE) $(TEST_USB_PATH) $(FUZZ_USB_PATH)
 	$(MAKE) -C $(GEN_INITRD_DIR)
-	$(MAKE) -C $(USB_DIR)
+	cd $(USB_DIR) && KRN_SOURCES=$(LINUX_AGENT_DIR) $(MAKE)
 	ln -sf ../src/sampleUSB $(MAKEF_DIR)/sharedir/sampleUSB
 	ln -sf ../src/fuzzer $(MAKEF_DIR)/sharedir/fuzzer
 
@@ -58,7 +58,6 @@ $(TEST_USB_PATH):
 
 # how to build USB fuzzer <fuzzer.c>
 $(FUZZ_USB_PATH):
-	echo "compiling fuzzer.c"
 	cd $(USB_DIR) && KRN_SOURCES=$(LINUX_AGENT_DIR) $(MAKE)
 
 .PHONY: clean fuzz

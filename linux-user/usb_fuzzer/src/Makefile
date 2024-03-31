@@ -1,4 +1,4 @@
-CFLAGS :=-O2 -Wall -Wextra
+CFLAGS :=-O2 -Wall -Wextra -Wunused-function
 TARGET := sampleUSB fuzzer
 
 .PHONY: all clean
