@@ -24,10 +24,14 @@ kAFL_payload* kafl_init()
 {
     host_config_t host_config = {0};
     agent_config_t agent_config = {0};
+    kAFL_payload* buffer = NULL;
+    
     hprintf("[i] kAFL agent initialization\n");
+    
     // 1. kAFL handshake
     kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0);
     kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+    
     // 2. query host config
     kAFL_hypercall(HYPERCALL_KAFL_GET_HOST_CONFIG, (uintptr_t)&host_config);
     hprintf("[i] HOST CONFIG:\n");
@@ -44,13 +48,14 @@ kAFL_payload* kafl_init()
     // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L146]
     if (host_config.host_magic != NYX_HOST_MAGIC) {
         hprintf("[-] INCOMPATIBLE MAGIC NUMBERS: 0x%x != 0x%x\n", host_config.host_magic, NYX_HOST_MAGIC);
-        habort("INCOMPATIBLE MAGIC NUMBERS");
+        habort("INCOMPATIBLE MAGIC NUMBERS\n");
     }
     // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L149]
     if (host_config.host_version != NYX_HOST_VERSION) {
         hprintf("[-] INCOMPATIBLE VERSIONS: 0x%x != 0x%x\n", host_config.host_version, NYX_HOST_VERSION);
-        habort("INCOMPATIBLE VERSIONS");
+        habort("INCOMPATIBLE VERSIONS\n");
     }
+
     // 3. set guest agent config
     // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L147]
     agent_config.agent_magic = NYX_AGENT_MAGIC;
@@ -63,15 +68,22 @@ kAFL_payload* kafl_init()
     hprintf("\tagent_version:         %d [0x%x]\n", agent_config.agent_version, agent_config.agent_version);
     hprintf("\tagent_non_reload_mode: %d\n", agent_config.agent_non_reload_mode);
     kAFL_hypercall(HYPERCALL_KAFL_SET_AGENT_CONFIG, (uintptr_t)&agent_config);
-    // 4. allocate payload buffer
-    //
+    
+    // 4. allocate page-aligned payload buffer
+    buffer = aligned_alloc((size_t)sysconf(_SC_PAGESIZE), host_config.payload_buffer_size);
+    if (buffer == NULL) habort("PAYLOAD BUFFER ALLOCATION FAILED\n"); 
+    mlock(buffer, host_config.payload_buffer_size); // prevents memory from being paged to the SWAP area
+    
     // 5. map payload buffer
-    //
-    // 6. submit crash handlers
-    //
+    kAFL_hypercall(HYPERCALL_KAFL_GET_PAYLOAD, (uintptr_t)buffer); 
+
+    // 6. submit crash handlers [SKIPPED]
     // 7. submit Intel PT ranges
-    //
+    // [TO-DO] - get relevant ranges (USB host stack)
+    // [https://intellabs.github.io/kAFL/reference/hypercall_api.html#range-submit]
+    
     // 8. submit CR3
+    kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
     return NULL;
 }
 
