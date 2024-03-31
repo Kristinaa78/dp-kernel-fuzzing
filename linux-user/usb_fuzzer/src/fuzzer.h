@@ -125,8 +125,38 @@ static int usb_init(int fd, int speed, const char* driver, const char* device) {
 	return ioctl(fd, USB_RAW_IOCTL_INIT, &arg);
 }
 
-static int usb_run(int fd)
-{
+static int usb_run(int fd) {
 	return ioctl(fd, USB_RAW_IOCTL_RUN, 0);
 }
 
+static int usb_eps_info(int fd, struct usb_eps_info *info) {
+	return ioctl(fd, USB_RAW_IOCTL_EPS_INFO, info);
+}
+
+static int usb_ep0_read(int fd, struct usb_ep_io *io) {
+	return ioctl(fd, USB_RAW_IOCTL_EP0_READ, io);
+}
+
+static int usb_ep0_write(int fd, struct usb_ep_io *io) {
+	return ioctl(fd, USB_RAW_IOCTL_EP0_WRITE, io);
+}
+
+static int usb_ep_enable(int fd, struct usb_endpoint_descriptor *desc) {
+	return ioctl(fd, USB_RAW_IOCTL_EP_ENABLE, desc);
+}
+
+static int usb_ep_disable(int fd, int ep) {
+	return ioctl(fd, USB_RAW_IOCTL_EP_DISABLE, ep);
+}
+
+static int usb_ep_read(int fd, struct usb_ep_io *io) {
+	return ioctl(fd, USB_RAW_IOCTL_EP_READ, io);
+}
+
+static int usb_ep_write(int fd, struct usb_ep_io *io) {
+	return ioctl(fd, USB_RAW_IOCTL_EP_WRITE, io);
+}
+
+static int usb_ep_write_may_fail(int fd, struct usb_ep_io *io) {
+	return ioctl(fd, USB_RAW_IOCTL_EP_WRITE, io);
+}
