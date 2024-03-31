@@ -1,0 +1,16 @@
+// RawGadget constants
+#define DEV_RAW_GADGET 		"/dev/raw-gadget"
+#define DEVICE_NAME  		"dummy_udc.0"
+#define DRIVER_NAME  		"dummy_udc"
+#define UDC_NAME_LENGTH_MAX 128
+// EP-related constants
+#define USB_RAW_EP_ADDR_ANY     0xff
+#define USB_RAW_EPS_NUM_MAX     30
+#define USB_RAW_EP_NAME_MAX     16
+#define EP_NUM_INT_IN           0x0
+#define EP_MAX_PACKET_INT       8
+#define EP0_MAX_DATA            256
+#define EP_MAX_PACKET_CONTROL   64
+#define EP_MAX_PACKET_INT       8
+#define UDC_NAME_LENGTH_MAX     128
+#define USB_MAX_PACKET_SIZE     128

@@ -1045,6 +1045,7 @@ int main()
 	int fd;
 	// redirect STDOUT to STDERR for debugging purposes
 	fprintf(stderr, "[i] redirecting stdout to stderr\n");
+	fprintf(stdout, "[i] test\n");
 	freopen(NULL, "w", stdout);
 	// 1. create a raw gadget instance by opening /dev/raw-gadget
 	fd = usb_open();	
