@@ -23,6 +23,7 @@ int send_usb_request(int fd);
 kAFL_payload* kafl_init()
 {
     host_config_t host_config = {0};
+    agent_config_t agent_config = {0};
     hprintf("[i] kAFL agent initialization\n");
     // 1. kAFL handshake
     kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0);
@@ -30,16 +31,38 @@ kAFL_payload* kafl_init()
     // 2. query host config
     kAFL_hypercall(HYPERCALL_KAFL_GET_HOST_CONFIG, (uintptr_t)&host_config);
     hprintf("[i] HOST CONFIG:\n");
-    hprintf("\thost_magic:          %d [0x%x]\n", host_config.host_magic, host_config.host_magic);
-    hprintf("\thost_version:        %d [0x%x]\n", host_config.host_version, host_config.host_version);
-    hprintf("\tbitmap_size:         %d [%dKB]\n", host_config.bitmap_size, host_config.bitmap_size / 1024);
-    hprintf("\tijon_bitmap_size:    %dB\n", host_config.ijon_bitmap_size);
-    hprintf("\tpayload_buffer_size: %d [%dKB]\n",
+    hprintf("\thost_magic:            %d [0x%x]\n", host_config.host_magic, host_config.host_magic);
+    hprintf("\thost_version:          %d [0x%x]\n", host_config.host_version, host_config.host_version);
+    hprintf("\tbitmap_size:           %d [%dKB]\n", host_config.bitmap_size, host_config.bitmap_size / 1024);
+    hprintf("\tijon_bitmap_size:      %dB\n", host_config.ijon_bitmap_size);
+    hprintf("\tpayload_buffer_size:   %d [%dKB]\n",
             host_config.payload_buffer_size,
             host_config.payload_buffer_size / 1024);
-    hprintf("\tworker_id:           %d\n", host_config.worker_id);
+    hprintf("\tworker_id:             %d\n", host_config.worker_id);
+   
+    // sanity checks - constants defined at:
+    // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L146]
+    if (host_config.host_magic != NYX_HOST_MAGIC) {
+        hprintf("[-] INCOMPATIBLE MAGIC NUMBERS: 0x%x != 0x%x\n", host_config.host_magic, NYX_HOST_MAGIC);
+        habort("INCOMPATIBLE MAGIC NUMBERS");
+    }
+    // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L149]
+    if (host_config.host_version != NYX_HOST_VERSION) {
+        hprintf("[-] INCOMPATIBLE VERSIONS: 0x%x != 0x%x\n", host_config.host_version, NYX_HOST_VERSION);
+        habort("INCOMPATIBLE VERSIONS");
+    }
     // 3. set guest agent config
-    //
+    // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L147]
+    agent_config.agent_magic = NYX_AGENT_MAGIC;
+    // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L150]
+    agent_config.agent_version = NYX_AGENT_VERSION;
+    // if set, disables VM snapshotting
+    agent_config.agent_non_reload_mode = 1;
+    hprintf("[i] AGENT CONFIG:\n");
+    hprintf("\tagent_magic:           %d [0x%x]\n", agent_config.agent_magic, agent_config.agent_magic);
+    hprintf("\tagent_version:         %d [0x%x]\n", agent_config.agent_version, agent_config.agent_version);
+    hprintf("\tagent_non_reload_mode: %d\n", agent_config.agent_non_reload_mode);
+    kAFL_hypercall(HYPERCALL_KAFL_SET_AGENT_CONFIG, (uintptr_t)&agent_config);
     // 4. allocate payload buffer
     //
     // 5. map payload buffer

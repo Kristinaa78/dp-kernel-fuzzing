@@ -1,6 +1,8 @@
 #!/bin/sh
 
 >&2 echo "[i] agent.sh starting" | vmcall hcat
+# print loaded kernel modules (to fix 'UDC core: USB Raw Gadget: couldn't find an available UDC or it's busy')
+lsmod
 # print the contents of the root dir (debugging purposes)
 ls -li /
 # print the loader.sh contents
