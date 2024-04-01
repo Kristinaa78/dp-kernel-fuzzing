@@ -42,7 +42,7 @@ GNU gdb (Ubuntu 12.1-0ubuntu1~22.04) 12.1
    ....
    // repeat the command with a blank line until the end of the IP range
 ```
-For obvious reasons, the kernel needs to be run with disabled KASLR. This can be done by specifying the `nokaslr` kernel boot parameter in QEMU (in `-append` option).
+For obvious reasons, the kernel needs to be run with disabled KASLR. This can be done by specifying the `nokaslr` kernel boot parameter in QEMU (in `-append` option). `nokaslr` parameter disables the kernel randomization which can be verified by either debugging the running system with `gdb` or by using `grep` against `/proc/kallsyms` in VM.
 
 
 
