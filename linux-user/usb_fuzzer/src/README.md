@@ -27,7 +27,8 @@ The provided script (`usb_functions.py`) reads all symbolic information within `
 0xffffffff82cb84c0: usb_state_string
 0xffffffff82cb8520: usb_decode_interval
 ```
-With such information, we can quickly determine the IP range \[lowest-highest address\] and implement it in the fuzzer (with a dedicated hypercall `RANGE_SUBMIT`).
+Size of the last function needs to be added to the highest address. Alternatively, this new highest value can be obtained with `gdb`.
+With such information, we can quickly determine the IP range \[lowest-highest address\] and implement it in the fuzzer (with a dedicated hypercall `RANGE_SUBMIT`). 
 
 The code of these kernel functions stretches across a continual range of memory addresses. This can be easily checked with `gdb`:
 

@@ -25,6 +25,9 @@ kAFL_payload* kafl_init()
     host_config_t host_config = {0};
     agent_config_t agent_config = {0};
     kAFL_payload* buffer = NULL;
+    uint64_t ip_range[3] = {0};
+    unsigned long start = 0xffffffff82cb83a0;      // address of usb_ep_type_string (via nm)
+    unsigned long end   = 0xffffffff82d1b710;      // address of usb_ep_type_string (via nm)
     
     hprintf("[i] kAFL agent initialization\n");
     
@@ -80,11 +83,15 @@ kAFL_payload* kafl_init()
 
     // 6. submit crash handlers [SKIPPED]
     // 7. submit Intel PT ranges
-    // [TO-DO] - get relevant ranges (USB host stack)
     // [https://intellabs.github.io/kAFL/reference/hypercall_api.html#range-submit]
     // [https://github.com/nyx-fuzz/libxdc?tab=readme-ov-file#warnings] - at least 1 filter range needs
     // to be set (without it, QEMU-NYX fails with "[QEMU-NYX] Error: libxdc_init() has failed")
     // #learnedthatthehardway
+    ip_range[0] = start;
+    ip_range[1] = end;
+    ip_range[2] = 0;
+    hprintf("[i] ATTEMPT TO SUBMIT IP RANGE: %lx - %lx [%d]\n", start, end, ip_range[2]); 
+    kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)ip_range);
 
     // 8. submit CR3
     kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
