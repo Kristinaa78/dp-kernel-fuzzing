@@ -10,27 +10,6 @@
   tags:
     - clone
 
-- name: Remove .git directory from "{{ examples_root }}"
-  ansible.builtin.file:
-    path: "{{ examples_root }}/.git"
-    state: absent
-  tags:
-    - clone
-
-- name: Remove .gitignore file from "{{ examples_root }}"
-  ansible.builtin.file:
-    path: "{{ examples_root }}/.gitignore"
-    state: absent
-  tags:
-    - clone
-
-- name: Remove .gitmodules file from "{{ examples_root }}"
-  ansible.builtin.file:
-    path: "{{ examples_root }}/.gitmodules"
-    state: absent
-  tags:
-    - clone
-
 - name: Import template windows tasks
   ansible.builtin.import_tasks: template_windows.yml
   when: "'examples-template-windows' in ansible_run_tags"
