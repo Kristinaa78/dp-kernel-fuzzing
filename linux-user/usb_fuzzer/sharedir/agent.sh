@@ -15,7 +15,21 @@ ls -li /
 vmcall hget -x -o /fuzz fuzzer
 cd /fuzz
 # print the contents of the /fuzz dir (debugging purposes)
+>&2 echo "[i] ls -li /fuzz:" | vmcall hcat
 ls -li /fuzz
+>&2 echo "[i] ls -li /dev:" | vmcall hcat
+ls -li /dev
+
+>&2 echo "[i] cat /proc/kallsyms | grep 'usb_free_coherent':" | vmcall hcat
+cat /proc/kallsyms | grep "usb_free_coherent"
+
+echo "Downloading dvkm.ko" | vmcall hcat
+vmcall hget -x -o /fuzz dvkm.ko
+
+echo "Inserting dvkm.ko" | vmcall hcat
+insmod dvkm.ko
+
+
 # >&2 echo "[+] starting the emulation" | vmcall hcat
 # sampleUSB
 >&2 echo "[+] starting the fuzzing process" | vmcall hcat

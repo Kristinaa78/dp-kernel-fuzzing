@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 
 #include <linux/types.h>
 #include <linux/usb/ch9.h>
@@ -18,7 +19,6 @@
 int setup_usb_device(int fd);
 int send_usb_request(int fd);
 
-// kAFL initialization function - follows the kAFL initialization protocol
 // [https://intellabs.github.io/kAFL/tutorials/linux/dvkm/agent.html#initialization]
 kAFL_payload* kafl_init()
 {
@@ -62,7 +62,8 @@ kAFL_payload* kafl_init()
     // [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h#L150]
     agent_config.agent_version = NYX_AGENT_VERSION;
     // if set, disables VM snapshotting
-    agent_config.agent_non_reload_mode = 1;
+    agent_config.agent_non_reload_mode = 0;
+    agent_config.coverage_bitmap_size = host_config.bitmap_size; 
     hprintf("[i] AGENT CONFIG:\n");
     hprintf("\tagent_magic:           %d [0x%x]\n", agent_config.agent_magic, agent_config.agent_magic);
     hprintf("\tagent_version:         %d [0x%x]\n", agent_config.agent_version, agent_config.agent_version);
@@ -81,10 +82,16 @@ kAFL_payload* kafl_init()
     // 7. submit Intel PT ranges
     // [TO-DO] - get relevant ranges (USB host stack)
     // [https://intellabs.github.io/kAFL/reference/hypercall_api.html#range-submit]
-    
+    // [https://github.com/nyx-fuzz/libxdc?tab=readme-ov-file#warnings] - at least 1 filter range needs
+    // to be set (without it, QEMU-NYX fails with "[QEMU-NYX] Error: libxdc_init() has failed")
+    // #learnedthatthehardway
+
     // 8. submit CR3
     kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
-    return NULL;
+    // [32B vs 64B] - this influences QEMU and libxdc decoder
+    kAFL_hypercall(HYPERCALL_KAFL_USER_SUBMIT_MODE, KAFL_MODE_64);
+
+    return buffer;
 }
 
 int main() {
@@ -93,12 +100,28 @@ int main() {
 
 	if(freopen(NULL, "w", stdout) == NULL) return -1;
 
-    fprintf(stdout, "[i] fuzzer started\n");
+    // kAFL handshake
     kAFL_payload *payload = kafl_init(); 
-    usb_init(fd, USB_SPEED_HIGH, "dummy_udc.0", "dummy_udc");
+    // kAFL harness
+    payload->size = 20; // test-value
+    kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+    kAFL_hypercall(HYPERCALL_KAFL_NEXT_PAYLOAD, 0); // - takes snapshot on the 1st call
+    // starts code coverage collection (Intel PT)
+    kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0);
+    kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+
+    fprintf(stdout, "[i] fuzzer started\n");
+    if(usb_init(fd, USB_SPEED_HIGH, DRIVER_NAME, DEVICE_NAME) < 0) {
+        close(fd);
+       //  kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+        return -1;
+    }
     fprintf(stdout, "[+] USB device initialized\n");
+
+    // stops code coverage collection (Intel PT)
+    // kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+      
     usb_run(fd);
-    
     // setup the USB device simulation
     if (setup_usb_device(fd) != 0) {
         fprintf(stderr, "Failed to set up USB device\n");
