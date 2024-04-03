@@ -26,8 +26,11 @@ kAFL_payload* kafl_init()
     agent_config_t agent_config = {0};
     kAFL_payload* buffer = NULL;
     uint64_t ip_range[3] = {0};
-    unsigned long start = 0xffffffff82cb83a0;      // address of usb_ep_type_string (via nm)
-    unsigned long end   = 0xffffffff82d1b710;      // address of usb_ep_type_string (via nm)
+    uint64_t ip_range2[3] = {0};
+    unsigned long start2 = 0xffffffff82cb83a0;      // address of usb_ep_type_string (via nm)
+    unsigned long start = 0xffffffffc0000000;
+    unsigned long end2   = 0xffffffff82d1b710;      // address of usb_ep_type_string (via nm)
+    unsigned long end   = 0xffffffffc0005000;      // address of usb_ep_type_string (via nm)
     
     hprintf("[i] kAFL agent initialization\n");
     
@@ -92,6 +95,11 @@ kAFL_payload* kafl_init()
     ip_range[2] = 0;
     hprintf("[i] ATTEMPT TO SUBMIT IP RANGE: %lx - %lx [%d]\n", start, end, ip_range[2]); 
     kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)ip_range);
+    ip_range2[0] = start2;
+    ip_range2[1] = end2;
+    ip_range2[2] = 1;
+    hprintf("[i] ATTEMPT TO SUBMIT IP RANGE: %lx - %lx [%d]\n", start2, end2, ip_range2[2]); 
+    kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)ip_range2);
 
     // 8. submit CR3
     kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
@@ -103,48 +111,38 @@ kAFL_payload* kafl_init()
 
 int main() {
     int fd;
-    fd = usb_open();
+    unsigned long ioctl_code, ioctl_num;
 
-	if(freopen(NULL, "w", stdout) == NULL) return -1;
+    // USB device initialization ----------------------------------
+    fd = usb_open();
+    hprintf("[i] USB fuzzer started\n");
+    if(fd < 0) habort("[-] unable to open /dev/raw-gadget");
+    if(usb_init(fd, USB_SPEED_HIGH, DRIVER_NAME, DEVICE_NAME) < 0) {
+        close(fd);
+        habort("[-] unable to initialize the device");
+    }
+    hprintf("[i] USB device initialized\n");
+    if(usb_run(fd) < 0) {
+        close(fd);
+        habort("[-] unable to run the device");
+    }
+    hprintf("[i] USB device is running\n");
+    hprintf("[i] -----------------------------\n");
+    // enumeration ------------------------------------------------
+    hprintf("[i] start of device configuration:\n");
+
+    // [WIP]
+    return -1;
 
     // kAFL handshake
     kAFL_payload *payload = kafl_init(); 
     // kAFL harness
-    payload->size = 20; // test-value
-    kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+    /*
     kAFL_hypercall(HYPERCALL_KAFL_NEXT_PAYLOAD, 0); // - takes snapshot on the 1st call
-    // starts code coverage collection (Intel PT)
     kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0);
+    // ioctl(fd, ioctl_num, &io_buffer);
     kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
-
-    fprintf(stdout, "[i] fuzzer started\n");
-    if(usb_init(fd, USB_SPEED_HIGH, DRIVER_NAME, DEVICE_NAME) < 0) {
-        close(fd);
-       //  kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
-        return -1;
-    }
-    fprintf(stdout, "[+] USB device initialized\n");
-
-    // stops code coverage collection (Intel PT)
-    // kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
-      
-    usb_run(fd);
-    // setup the USB device simulation
-    if (setup_usb_device(fd) != 0) {
-        fprintf(stderr, "Failed to set up USB device\n");
-        close(fd);
-        return -1;
-    }
-
-    // send a USB request (customized for fuzzing)
-    if (send_usb_request(fd) != 0) {
-        fprintf(stderr, "Failed to send USB request\n");
-        close(fd);
-        return -1;
-    }
-    
-    close(fd);
-    return 0;
+    return 0; */
 }
 
 int setup_usb_device(int fd) {
