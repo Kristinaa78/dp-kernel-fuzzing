@@ -1,8 +1,10 @@
-// RawGadget constants
-#define DEV_RAW_GADGET 		"/dev/raw-gadget"
-#define DEVICE_NAME  		"dummy_udc.0"
-#define DRIVER_NAME  		"dummy_udc"
-#define UDC_NAME_LENGTH_MAX 	128
+// raw gadget constants ------------------------------------------------------------
+#define DEV_RAW_GADGET 		    "/dev/raw-gadget"
+// UDC device name [retrieved by 'ls /sys/class/udc/']
+#define DEVICE_NAME  		    "dummy_udc.0"
+// UDC driver name [retrieved by 'cat /sys/class/udc/dummy_udc.0/uevent']
+#define DRIVER_NAME  		    "dummy_udc"
+#define UDC_NAME_LENGTH_MAX     128
 // EP-related constants
 #define USB_RAW_EP_ADDR_ANY     0xff
 #define USB_RAW_EPS_NUM_MAX     30

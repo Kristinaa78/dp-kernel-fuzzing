@@ -420,9 +420,8 @@ void usb_loop(int fd) {
 		event.inner_event.length = sizeof(struct usb_control_event);
 		// fetch USB event
 		usb_fetch(fd, (struct usb_event *)&event);
-		// hprintf("%d\n", event.inner_event.type);
 		if (event.inner_event.type == USB_RAW_EVENT_CONNECT) {
-		// 	hprintf("[i] USB_RAW_EVENT_CONNECT fetched\n");	
+			// assign address to the device's endpoint
 			usb_endpoints_info(fd, descriptors.endpoint);
 			continue;
 		}
@@ -433,6 +432,7 @@ void usb_loop(int fd) {
 		io.inner_io.ep 		= 0;
 		io.inner_io.flags 	= 0;
 		io.inner_io.length 	= 0;
+		// 
 		int reply = setup_request(fd, &event, &io);
 		if (!reply) {
 			hprintf("[-] EP0 HALTED\n");
