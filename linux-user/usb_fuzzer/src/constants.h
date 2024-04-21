@@ -21,12 +21,12 @@
 #define MAX_EPS_NUMBER		32
 // USB device descriptor-related constants  [https://www.beyondlogic.org/usbnutshell/usb5.shtml]
 // - highest version of the USB specification the device supports
-#define BCD_USB		0x0200
+#define BCD_USB		0x0200 // USB 2.0
 // - vendor and product ID are used to find a driver
 // - vendor ID assigned by the USB-IF
 // [https://the-sz.com/products/usbid/index.php]
-#define USB_VENDOR	0x046d	// Logitech Inc.
-#define USB_PRODUCT	0xc312 	// DeLuxe 250 Keyboard
+#define USB_VENDOR	0x0483 // STMicroelectronics 
+#define USB_PRODUCT	0x5232
 // (optional) indeces of string descriptors
 // - provide details about manufacturer, product, a serial number
 #define STRING_ID_MANUFACTURER	0
@@ -35,7 +35,7 @@
 #define STRING_ID_CONFIG	3
 #define STRING_ID_INTERFACE	4
 // HID-related constants
-// #define USB_HID_HID		0x21
-// #define USB_HID_REPORT	0x22
-// #define USB_HID_PHYS	0x23
-
+#define USB_HID_HID		            0x21
+#define USB_HID_REPORT	            0x22
+#define USB_HID_PHYS	            0x23
+#define USB_HID_DESCRIPTOR_SIZE     0x09

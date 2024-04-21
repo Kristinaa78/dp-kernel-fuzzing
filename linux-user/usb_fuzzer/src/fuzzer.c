@@ -14,10 +14,11 @@
 #include "fuzzer.h"
 #include <asm/nyx_api.h>
 
-// USB device descriptor -------------------------------------
-// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L286
+// USB device descriptor [standard descriptor] ---------------
+// [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L286]
 // - describes general information about a USB device
 // - high-speed device also needs device_qualifier descriptor
+// - subclass field is used to identify Boot Devices
 struct usb_device_descriptor device = {
 	.bLength =			USB_DT_DEVICE_SIZE,	// descriptor's size
 	.bDescriptorType =	USB_DT_DEVICE,
@@ -25,7 +26,7 @@ struct usb_device_descriptor device = {
 	.bDeviceClass =		0, // class code (if 0, interface specifies its own)
 	.bDeviceSubClass =	0, // subclass code (if class code 0, this needs to be 0 as well)
 	.bDeviceProtocol =	0, // class-specific protocol code
-	.bMaxPacketSize0 =	EP_MAX_PACKET_CONTROL, // max packet size for EP0 [only valid: 8/16/32/64]
+	.bMaxPacketSize0 =	EP_MAX_PACKET_CONTROL, // max packet size for EP0 [valid values: 8/16/32/64]
 	.idVendor =			__constant_cpu_to_le16(USB_VENDOR),  // assigned by USB-IF
 	.idProduct =		__constant_cpu_to_le16(USB_PRODUCT), // assigned by manufacturer
 	.bcdDevice =		0,
@@ -35,10 +36,11 @@ struct usb_device_descriptor device = {
 	.bNumConfigurations =	1,
 };
 
-// USB configuration descriptor-------------------------------
-// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L346
+// USB configuration descriptor [standard descriptor] --------
+// [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L346]
 // - describes information about a specific device configuration
-// - device has one or more such descriptors
+// - device has one or more configurations
+// - out of these, only one can be active at the time
 // - each configuration has one or more interfaces
 // - each interface has zero or more endpoints
 struct usb_config_descriptor config = {
@@ -47,7 +49,7 @@ struct usb_config_descriptor config = {
 	// total length gets computed later
 	// - it is total length of data returned for specified configuration
 	// - includes: combined length of ALL descriptors (configuration, interface, endpoint, AND
-	// class/vendor-specific)
+	// class/vendor-specific such as report descriptor)
 	.wTotalLength =		0,
 	.bNumInterfaces =	1, 	// number of interfaces
 	.bConfigurationValue =	1,	// value causes device to assume the described configuration
@@ -57,8 +59,8 @@ struct usb_config_descriptor config = {
 	.bMaxPower =		0x32, // maximum power consumption of the device in this configuration
 };
 
-// USB interface descriptor ----------------------------------
-// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L389
+// USB interface descriptor [standard descriptor] ------------
+// [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L389]
 // - describes a specific interface within a configuration
 // - has zero or more endpoint descriptors (without EP0)
 // - always returned as part of the configuration descriptor (interface desc. cannot be
@@ -70,38 +72,44 @@ struct usb_interface_descriptor interface = {
 	.bInterfaceNumber =		0, // interface's number: index in the array of supported interfaces
 	.bAlternateSetting = 	0, // value specifies alternate setting for the interface
 	.bNumEndpoints =		1, // number of endpoints (if 0, interface only uses Default Control Pipe)
-	.bInterfaceClass =		0, // USB_CLASS_HID, // class code
-	.bInterfaceSubClass =	1, // subclass code
-	.bInterfaceProtocol =	1, // subclass/class-specific protocol code
+	.bInterfaceClass =		USB_CLASS_HID, // class code
+	.bInterfaceSubClass =	1, // subclass code (1 for Boot Interface subclass)
+	.bInterfaceProtocol =	1, // subclass/class-specific protocol code (1 for keyboard)
 	.iInterface =			STRING_ID_INTERFACE,
 };
 
-// USB endpoint descriptor -----------------------------------
-// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L407
+// USB endpoint descriptor [standard descriptor] -------------
+// [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L407]
 // - describes information about the bandwidth requirements of the endpoint
 // - always returned as part of the configuration information
 // - cannot be directly accessed
 // - EP0 has no descriptor
 // - misses 2 fields (bRefresh and bSynchAddress used in audio)
+// - HID device has one IN endpoint of interrupt type
 struct usb_endpoint_descriptor endpoint = {
 	.bLength =			USB_DT_ENDPOINT_SIZE, // descriptor's size
 	.bDescriptorType =	USB_DT_ENDPOINT,
 	// encoded address of EP on the USB device
 	.bEndpointAddress =	USB_DIR_IN | EP_NUM_INT_IN,
-	// bitmap: endpoint's transfer type (with ISOsynchronous transfers + synchro type and usage type added)
+	// bitmap: endpoint's transfer type
 	.bmAttributes =		USB_ENDPOINT_XFER_INT,	// interrupt endpoint type
 	// maximum packet size this EP is capable of sending/receiving
+	// for interrupt endpoint - this vlaue is used to reserve the bus time in the
+	// schedule for per frame data payloads
+	// - smaller payloads may be sent, but will terminate the transfer
 	.wMaxPacketSize =	EP_MAX_PACKET_INT,
 	// interval for polling EP for data transfers
 	// - expressed in FRAMES/microFRAMES (depending on the device's speed)
 	.bInterval =		5,
 };
 
-// USB HID specifics ------------------------------------------
-// https://www.usb.org/sites/default/files/hid1_11.pdf
+// USB HID report [class-specific descriptor] ----------------
+// [https://www.usb.org/sites/default/files/hid1_11.pdf]
 // - HID report descriptor
+// - variable in length
 // - describes device's capabilities  (https://docs.kernel.org/hid/hidintro.html)
 // - hexdump -C /sys/bus/hid/devices/{{ id }}/report_descriptor
+// - hexdump -C /sys/bus/hid/devices/0003\:0483\:5232.0006/report_descriptor
 char usb_hid_report[] = {
 	0x05, 0x01,                    // Usage Page (Generic Desktop)        0
 	0x09, 0x06,                    // Usage (Keyboard)                    2
@@ -117,14 +125,14 @@ char usb_hid_report[] = {
 	0x95, 0x01,                    //  Report Count (1)                   22
 	0x75, 0x08,                    //  Report Size (8)                    24
 	0x81, 0x01,                    //  Input (Cnst,Arr,Abs)               26
-	0x95, 0x03,                    //  Report Count (3)                   28
+	0x95, 0x05,                    //  Report Count (5)                   28
 	0x75, 0x01,                    //  Report Size (1)                    30
 	0x05, 0x08,                    //  Usage Page (LEDs)                  32
 	0x19, 0x01,                    //  Usage Minimum (1)                  34
-	0x29, 0x03,                    //  Usage Maximum (3)                  36
+	0x29, 0x05,                    //  Usage Maximum (5)                  36
 	0x91, 0x02,                    //  Output (Data,Var,Abs)              38
-	0x95, 0x05,                    //  Report Count (5)                   40
-	0x75, 0x01,                    //  Report Size (1)                    42
+	0x95, 0x01,                    //  Report Count (1)                   40
+	0x75, 0x03,                    //  Report Size (3)                    42
 	0x91, 0x01,                    //  Output (Cnst,Arr,Abs)              44
 	0x95, 0x06,                    //  Report Count (6)                   46
 	0x75, 0x08,                    //  Report Size (8)                    48
@@ -137,11 +145,18 @@ char usb_hid_report[] = {
 	0xc0,                          // End Collection                      64
 };
 
+// USB HID descriptor [class-specific descriptor] -----------
+// [https://www.usb.org/sites/default/files/hid1_11.pdf] 
+// - identifies the length and type of subordinate descriptors
+// (Report or Physical descriptors)
 struct hid_descriptor usb_hid = {
-	.bLength =			9,
+	.bLength =			USB_HID_DESCRIPTOR_SIZE,
 	.bDescriptorType =	HID_DT_HID,
+	// specifies HID Class specification release
 	.bcdHID =			__constant_cpu_to_le16(0x0110),
-	.bCountryCode =		0,
+	// countries code for hardware localization 
+	.bCountryCode =		0, // slovakia - 24 (decimal)
+	// number of HID class descriptors to follow (we only use report desc)
 	.bNumDescriptors =	1,
 	.desc =				{
 		{
@@ -151,17 +166,19 @@ struct hid_descriptor usb_hid = {
 	},
 };
 
+// custom descriptors structure so that all descriptors are at one place
 struct custom_descriptors descriptors = {
 	.device 	= &device,
 	.config 	= &config,
 	.interface 	= &interface,
 	.endpoint 	= &endpoint,
-	.hid 		= NULL
+	.hid 		= &usb_hid
 };
 
+// variables signalize whether or not the interrupt endpoint
+// was already enabled (or thread spawned)
 int ep_int_in = -1;
 pthread_t ep_int_in_thread;
-int ep_int_in_thread_spawned = 0;
 
 // kAFL handshake --------------------------------------------
 // [https://intellabs.github.io/kAFL/tutorials/linux/dvkm/agent.html#initialization]
@@ -171,9 +188,6 @@ kAFL_payload* kafl_init()
     agent_config_t agent_config = {0};
     kAFL_payload* buffer = NULL;
     uint64_t ip_range[3] = {0};
-    //unsigned long start  = 0xffffffff82cb83a0;      // address of usb_ep_type_string (via nm)
-    //unsigned long start  = 0xffffffffc0201000;      // address of usb_ep_type_string (via nm)
-	//unsigned long end    = 0xffffffffc0208000;      // address of usb_ep_type_string (via nm)
 	unsigned long start = 0xffffffff8117daa0;
 	unsigned long end = 0xffffffff860c92e0;
     hprintf("[i] kAFL agent initialization\n");
@@ -303,10 +317,9 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 			// determine STANDARD request type (out of 8)
 			switch (event->ctrl.bRequest) {
 				// GET DESCRIPTOR: first to receive
-				// - host needs to know MAX_PACKET_SIZE
 				case USB_REQ_GET_DESCRIPTOR:
 					// determine descriptor TYPE (based on wValues)
-					// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L235
+					// [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L235]
 					switch (event->ctrl.wValue >> 8) {
 						// device descriptor
 						case USB_DT_DEVICE:
@@ -317,6 +330,7 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 						// configuration descriptor
 						case USB_DT_CONFIG:
 							hprintf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_CONFIG\n");
+							// all configuration + interface + hid descriptor + endpoint descriptors are sent
 							io->inner_io.length = build_config(&io->data[0], sizeof(io->data), &descriptors);
 							return 1;
 						// string descriptor
@@ -353,23 +367,19 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 				// if wValue == 0, device should be deconfigured
 				case USB_REQ_SET_CONFIGURATION:
  					hprintf("USB_TYPE_STANDARD --> USB_REQ_SET_CONFIGURATION\n");
+					// the SET_CONFIGURATION request enables the USB device
+					// we need to enable the interrupt endpoint:
 					ep_int_in = usb_ep_enable(fd, descriptors.endpoint);
 					hprintf("\t |-- EP0: ep_int_in enabled: %d\n", ep_int_in);
-					// spawns new thread
-					// - invokes ep_int_in_loop as its start_routine() with fd as arg
-					// - thread terminates if it calls pthread_exit(),  returns from
-					// start_routine(), main thread exits(), or gets canceled
+					// from now on, device is enabled and can send input data to host
 					int result = pthread_create(&ep_int_in_thread, 0, fuzzing_loop,  (void*)(long)fd);
 					if (result != 0) {
 						habort("[-] UNABLE TO CRETE THREAD (ep_int_in)");	
 						return 0;
 					}
-					ep_int_in_thread_spawned =  1;
 					hprintf("[+] EP0: SPAWNED THREAD (ep_int_in)\n");
 					configure_device(fd, descriptors.config);
 					io->inner_io.length = 0;
-					// when new HID device (e.g., keyboard) is added, it is firstly managed by 
-					// /drivers/hid/hid-core.c --> hid_add_device()
 					return 1;
 				case USB_REQ_SET_INTERFACE:
 					io->inner_io.length = 0;
@@ -385,6 +395,7 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 			break;
 		case USB_TYPE_CLASS:
 			switch (event->ctrl.bRequest) {
+				// non-important requests
 				case HID_REQ_SET_REPORT:
 					hprintf("USB_TYPE_CLASS --> HID_REQ_SET_REPORT\n");
 					io->inner_io.length = 1;
