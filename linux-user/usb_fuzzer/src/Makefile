@@ -1,5 +1,5 @@
 CFLAGS :=-O2 -Wall -Wextra -Wunused-function
-TARGET := sampleUSB fuzzer
+TARGET := fuzzer
 
 .PHONY: all clean
 
@@ -9,6 +9,9 @@ sampleUSB: sampleUSB.c
 	$(CC) $(CFLAGS) -I ${KRN_SOURCES}/arch/x86/include $< -o $@ -lpthread
 
 fuzzer: fuzzer.c
+	$(CC) $(CFLAGS) -I ${KRN_SOURCES}/arch/x86/include $< -o $@ -lpthread
+
+sampleFUZZ: sampleFUZZ.c
 	$(CC) $(CFLAGS) -I ${KRN_SOURCES}/arch/x86/include $< -o $@ -lpthread
 
 clean:

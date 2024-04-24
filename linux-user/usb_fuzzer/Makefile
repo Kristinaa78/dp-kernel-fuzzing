@@ -11,7 +11,6 @@ GEN_INITRD_DIR := ${EXAMPLES_ROOT}/linux-user/scripts
 KAFL_INITRD_PATH := $(GEN_INITRD_DIR)/kafl_initrd.cpio.gz
 # usb fuzzer
 USB_DIR := $(MAKEF_DIR)/src
-TEST_USB_PATH := $(USB_DIR)/sampleUSB
 FUZZ_USB_PATH := $(USB_DIR)/fuzzer
 
 # depend on
@@ -19,7 +18,6 @@ FUZZ_USB_PATH := $(USB_DIR)/fuzzer
 all: $(KAFL_INITRD_PATH) $(LINUX_AGENT_BZIMAGE) $(TEST_USB_PATH) $(FUZZ_USB_PATH)
 	$(MAKE) -C $(GEN_INITRD_DIR)
 	cd $(USB_DIR) && KRN_SOURCES=$(LINUX_AGENT_DIR) $(MAKE)
-	ln -sf ../src/sampleUSB $(MAKEF_DIR)/sharedir/sampleUSB
 	ln -sf ../src/fuzzer $(MAKEF_DIR)/sharedir/fuzzer
 
 clean:
@@ -51,10 +49,6 @@ endif
 # how to build kafl_initrd.cpio.gz
 $(KAFL_INITRD_PATH):
 	$(MAKE) -C $(GEN_INITRD_DIR)
-
-# how to build USB raw gadget test device <sampleUSB.c>
-$(TEST_USB_PATH):
-	cd $(USB_DIR) && KRN_SOURCES=$(LINUX_AGENT_DIR) $(MAKE)
 
 # how to build USB fuzzer <fuzzer.c>
 $(FUZZ_USB_PATH):
