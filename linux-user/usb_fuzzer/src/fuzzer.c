@@ -285,6 +285,7 @@ void *fuzzing_loop(void *arg) {
 			habort("usb_ep_write FAILED");
 		
     	kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+		sleep(1);
 	}
 
 	return NULL;
@@ -322,19 +323,19 @@ int setup_request(int fd, struct usb_control_event *event, struct usb_control_io
 					switch (event->ctrl.wValue >> 8) {
 						// device descriptor
 						case USB_DT_DEVICE:
-							hprintf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_DEVICE\n");
+							printf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_DEVICE\n");
 							memcpy(&io->data[0], descriptors.device, sizeof(*descriptors.device));
 							io->inner_io.length = sizeof(*descriptors.device);
 							return 1;
 						// configuration descriptor
 						case USB_DT_CONFIG:
-							hprintf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_CONFIG\n");
+							printf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_CONFIG\n");
 							// all configuration + interface + hid descriptor + endpoint descriptors are sent
 							io->inner_io.length = build_config(&io->data[0], sizeof(io->data), &descriptors);
 							return 1;
 						// string descriptor
 						case USB_DT_STRING:
-							hprintf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_STRING\n");
+							printf("USB_TYPE_STANDARD --> USB_REQ_GET_DESCRIPTOR --> USB_DT_STRING\n");
 							io->data[0] = 4;
 							io->data[1] = USB_DT_STRING;
 							if ((event->ctrl.wValue & 0xff) == 0) {
@@ -452,11 +453,11 @@ void usb_loop(int fd) {
 		if (event.ctrl.wLength < io.inner_io.length)
 			io.inner_io.length = event.ctrl.wLength;
 		if (event.ctrl.bRequestType & USB_DIR_IN) {
-			int result = usb_ep0_write(fd, (struct usb_ep_io *)&io);
-			hprintf("[i] EP0: transferred %d bytes [IN]\n", result);
+			usb_ep0_write(fd, (struct usb_ep_io *)&io);
+			// hprintf("[i] EP0: transferred %d bytes [IN]\n", result);
 		} else {
-			int result = usb_ep0_read(fd, (struct usb_ep_io *)&io);
-			hprintf("[i] EP0: transferred %d bytes [OUT]\n", result);
+			usb_ep0_read(fd, (struct usb_ep_io *)&io);
+			// hprintf("[i] EP0: transferred %d bytes [OUT]\n", result);
 		}
 	}
 }

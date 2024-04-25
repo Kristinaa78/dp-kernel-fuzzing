@@ -11,7 +11,7 @@
 #define EP_NUM_INT_IN           0x0
 // maximum data payload size on the interrupt endpoint in the default
 // configuration is only 64 (maximum is 1024 but in alternative interfaces)
-#define EP_MAX_PACKET_INT       8
+#define EP_MAX_PACKET_INT       64
 #define EP0_MAX_DATA            256
 #define EP_MAX_PACKET_CONTROL   64
 #define UDC_NAME_LENGTH_MAX     128
