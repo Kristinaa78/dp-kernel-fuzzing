@@ -7,7 +7,7 @@
  *
  * documentation at [https://docs.kernel.org/usb/usbmon.html]
  *
- * author:   Kristina Hrebenarova
+ * author:   kristina hrebenarova
  * created:  03/2024
  **/
 
