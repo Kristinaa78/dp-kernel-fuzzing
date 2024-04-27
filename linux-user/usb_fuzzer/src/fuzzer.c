@@ -1,3 +1,31 @@
+/*
+ * author: 		kristina hrebenarova
+ * created: 	04-2024
+ *
+ * fuzzer.c aims to emulate a fuzzing USB device. emulation is done via
+ * the raw gadget kernel interface. after its initialization, the USB 
+ * device enumeration process begins. this device presents itself with 
+ * its device, configuration, and hid descriptors (keyboard HID). it
+ * has only one interrupt endpoint which is used during the fuzzing
+ * phase. fuzzing phase begins after the kernel enables the device
+ * with 'SET_CONFIGURATION' request. at this point, program performs
+ * kAFL initialization protocol and starts fuzzing -- in a loop, device
+ * requests a fuzzing payload from the kAFL's binary fuzzer, starts
+ * tracing, sends data to kernel, and stops Intel PT.
+ *
+ * a significant portion of this code is inspired by the sample raw gadget 
+ * code for a HID device from the syzkaller's authors. this code
+ * is (licensed under Apache-2.0) is available at
+ * [https://github.com/xairy/raw-gadget/blob/master/examples/keyboard.c]
+ *
+ * additionally, kAFL part of this implementation is based on the 
+ * documentation - available at
+ * [https://intellabs.github.io/kAFL/reference/hypercall_api.html]
+ *
+ * source code to nyx_api.h is available at
+ * [https://github.com/IntelLabs/kafl.targets/blob/master/nyx_api.h]
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
