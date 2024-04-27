@@ -185,10 +185,14 @@ kAFL_payload* kafl_init()
     host_config_t host_config = {0};
     agent_config_t agent_config = {0};
     kAFL_payload* buffer = NULL;
-    uint64_t ip_range[3] = {0};
-	unsigned long start = 0xffffffff8117daa0;
-	unsigned long end = 0xffffffff860c92e0;
-    hprintf("[i] kAFL agent initialization\n");
+    uint64_t usb_range[3] = {0};
+	unsigned long usb_start = 0xffffffff82cb83a0;
+	unsigned long usb_end   = 0xffffffff82d1b6f3;
+	uint64_t hid_range[3] = {0};
+	unsigned long hid_start = 0xffffffff82fa61f0;
+	unsigned long hid_end   = 0xffffffff82fe72f2;
+
+	hprintf("[i] kAFL agent initialization\n");
     
     // 1. kAFL handshake
     kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0);
@@ -246,11 +250,17 @@ kAFL_payload* kafl_init()
     // [https://github.com/nyx-fuzz/libxdc?tab=readme-ov-file#warnings] - at least 1 filter range needs
     // to be set (without it, QEMU-NYX fails with "[QEMU-NYX] Error: libxdc_init() has failed")
     // #learnedthatthehardway
-    ip_range[0] = start;
-    ip_range[1] = end;
-    ip_range[2] = 0;
-    hprintf("[i] ATTEMPT TO SUBMIT IP RANGE: %lx - %lx [%d]\n", start, end, ip_range[2]); 
-    kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)ip_range);
+    usb_range[0] = usb_start;
+    usb_range[1] = usb_end;
+    usb_range[2] = 0;
+    hprintf("[i] ATTEMPT TO SUBMIT IP RANGE: %lx - %lx [%d]\n", usb_start, usb_end, usb_range[2]); 
+    kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)usb_range);
+    
+	hid_range[0] = hid_start;
+    hid_range[1] = hid_end;
+    hid_range[2] = 1;
+    hprintf("[i] ATTEMPT TO SUBMIT IP RANGE: %lx - %lx [%d]\n", hid_start, hid_end, hid_range[2]); 
+    kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)hid_range);
 
     // 8. submit CR3
     kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
@@ -278,14 +288,13 @@ void *fuzzing_loop(void *arg) {
 		memcpy(&io.inner_io.data[0], payload->data, EP_MAX_PACKET_INT);
 		// send data to kernel trough the endpoint
 		int result = usb_ep_write(fd, (struct usb_ep_io *)&io);
-		
 		if (result < 0 && errno == ESHUTDOWN)
-			habort("DEVICE LIKELY RESET\n");
+			habort("[i] DEVICE LIKELY RESET\n");
 		else if (result < 0)
-			habort("usb_ep_write FAILED");
-		
-    	kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
+			habort("[-] usb_ep_write() FAILED");
+	
 		sleep(1);
+    	kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
 	}
 
 	return NULL;
