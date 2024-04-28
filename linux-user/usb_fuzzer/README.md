@@ -4,7 +4,11 @@ fuzzing the descriptor data during the enumeration phase.
 
 ### implementation details
 `fuzzer.c` - emulates a fuzzing USB device, utilizing the raw gadget kernel interface coupled with the kAFL *harness*
+
 `fuzzer.h.` - contains the definitions of the raw gadget `ioctl`-based interface, USB structures, and enumerations
+
 `constants.h` - contains the definitions of the USB constants integral to the operations of both `fuzzer.c` and `fuzzer.h`
+
 `usbmon.c` - a program that collects the USB traffic through the `usbmon` kernel module and saves it as binary data (more in [README.md](src/usbmon/README.md))
+
 `ip_range.py` - a program that identifies the IP range of the kernel functions within the compiled Linux kernel binary. it is used to identify of the USB and HID code IP ranges within the kernel (more in [README.md](src/ip_range/README.md)).
