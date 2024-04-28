@@ -4,8 +4,8 @@ binary (vmlinux). it uses nm utility to load all symbolic information from the b
 kernel function specified in the file usb_functions.txt is searched for within the nm's output. this script
 writes the result in the output file ('functions_addresses.txt'), making it available for further processing.
 
-author:     kristina hrebenarova
-created:    03/2024
+author: kristina hrebenarova
+created: 03/2024
 """
 
 import subprocess

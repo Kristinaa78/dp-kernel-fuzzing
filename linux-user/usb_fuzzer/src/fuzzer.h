@@ -1,5 +1,5 @@
 /*
- * author: 	kristina hrebenarova
+ * author: kristina hrebenarova
  * created: 04-2024
  *
  * this file contains definitions for structures, enums, and functions
@@ -33,61 +33,61 @@
 #include "constants.h"
 
 // RAW GADGET IOCTLS definitions
-#define USB_RAW_IOCTL_INIT		_IOW('U', 0, struct usb_init)
-#define USB_RAW_IOCTL_RUN		_IO('U', 1)
-#define USB_RAW_IOCTL_EVENT_FETCH	_IOR('U', 2, struct usb_event)
+#define USB_RAW_IOCTL_INIT _IOW('U', 0, struct usb_init)
+#define USB_RAW_IOCTL_RUN _IO('U', 1)
+#define USB_RAW_IOCTL_EVENT_FETCH _IOR('U', 2, struct usb_event)
 // - EP-related IOCTLs
-#define USB_RAW_IOCTL_EPS_INFO		_IOR('U', 11, struct usb_eps_info)
-#define USB_RAW_IOCTL_EP0_STALL		_IO('U', 12)
-#define USB_RAW_IOCTL_EP0_WRITE		_IOW('U', 3, struct usb_ep_io)
-#define USB_RAW_IOCTL_EP0_READ		_IOWR('U', 4, struct usb_ep_io)
-#define USB_RAW_IOCTL_EP_ENABLE		_IOW('U', 5, struct usb_endpoint_descriptor)
-#define USB_RAW_IOCTL_EP_DISABLE	_IOW('U', 6, __u32)
-#define USB_RAW_IOCTL_EP_WRITE		_IOW('U', 7, struct usb_ep_io)
-#define USB_RAW_IOCTL_EP_READ		_IOWR('U', 8, struct usb_ep_io)
+#define USB_RAW_IOCTL_EPS_INFO _IOR('U', 11, struct usb_eps_info)
+#define USB_RAW_IOCTL_EP0_STALL _IO('U', 12)
+#define USB_RAW_IOCTL_EP0_WRITE _IOW('U', 3, struct usb_ep_io)
+#define USB_RAW_IOCTL_EP0_READ _IOWR('U', 4, struct usb_ep_io)
+#define USB_RAW_IOCTL_EP_ENABLE _IOW('U', 5, struct usb_endpoint_descriptor)
+#define USB_RAW_IOCTL_EP_DISABLE _IOW('U', 6, __u32)
+#define USB_RAW_IOCTL_EP_WRITE _IOW('U', 7, struct usb_ep_io)
+#define USB_RAW_IOCTL_EP_READ _IOWR('U', 8, struct usb_ep_io)
 // - CONFIG-related IOCTLs
-#define USB_RAW_IOCTL_CONFIGURE		_IO('U', 9)
-#define USB_RAW_IOCTL_VBUS_DRAW		_IOW('U', 10, __u32)
+#define USB_RAW_IOCTL_CONFIGURE _IO('U', 9)
+#define USB_RAW_IOCTL_VBUS_DRAW _IOW('U', 10, __u32)
 
 // for Human Interface Devices, class-specific
 // [https://elixir.bootlin.com/linux/latest/source/include/linux/hid.h#L725]
 struct hid_class_descriptor {
-	__u8  	bDescriptorType;
-	__le16 	wDescriptorLength;
-} __attribute__ ((packed));
+	__u8 bDescriptorType;
+	__le16 wDescriptorLength;
+} __attribute__((packed));
 
 // - [https://elixir.bootlin.com/linux/latest/source/include/linux/hid.h#L730]
 // - [https://www.usb.org/sites/default/files/hid1_11.pdf p. 32 (Sec 6.2.1)]
 // - identifies length and type of subordinate descriptors for a device
 struct hid_descriptor {
-	__u8  	bLength;
-	__u8 	bDescriptorType;
-	__le16 	bcdHID;
-	__u8  	bCountryCode;
-	__u8  	bNumDescriptors;
+	__u8 bLength;
+	__u8 bDescriptorType;
+	__le16 bcdHID;
+	__u8 bCountryCode;
+	__u8 bNumDescriptors;
 	struct hid_class_descriptor desc[1];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 // custom struct for all used descriptors so they can be dereferenced easily
 // - as the fields suggests, implementation is limited to only 1 configuration
 //   with 1 interface, 1 endpoint, and a single hid descriptor
 struct custom_descriptors {
-	struct usb_device_descriptor    *device;
-	struct usb_config_descriptor    *config;
+	struct usb_device_descriptor *device;
+	struct usb_config_descriptor *config;
 	struct usb_interface_descriptor *interface;
-	struct usb_endpoint_descriptor  *endpoint;
-	struct hid_descriptor           *hid;
+	struct usb_endpoint_descriptor *endpoint;
+	struct hid_descriptor *hid;
 };
 
-// taken directly from: 
+// taken directly from:
 // [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/raw_gadget.h#L38]
 enum usb_raw_event_type {
-	USB_RAW_EVENT_INVALID 	 = 0,
-	USB_RAW_EVENT_CONNECT 	 = 1,
-	USB_RAW_EVENT_CONTROL 	 = 2,
-	USB_RAW_EVENT_SUSPEND 	 = 3,
-	USB_RAW_EVENT_RESUME 	 = 4,
-	USB_RAW_EVENT_RESET 	 = 5,
+	USB_RAW_EVENT_INVALID = 0,
+	USB_RAW_EVENT_CONNECT = 1,
+	USB_RAW_EVENT_CONTROL = 2,
+	USB_RAW_EVENT_SUSPEND = 3,
+	USB_RAW_EVENT_RESUME = 4,
+	USB_RAW_EVENT_RESET = 5,
 	USB_RAW_EVENT_DISCONNECT = 6,
 };
 
@@ -101,9 +101,9 @@ enum usb_raw_event_type {
  * see constants.h:3-5 for how this data can be retrieved
  */
 struct usb_init {
-	__u8	driver_name[UDC_NAME_LENGTH_MAX];
-	__u8	device_name[UDC_NAME_LENGTH_MAX];
-	__u8	speed;
+	__u8 driver_name[UDC_NAME_LENGTH_MAX];
+	__u8 device_name[UDC_NAME_LENGTH_MAX];
+	__u8 speed;
 };
 
 /*
@@ -116,9 +116,9 @@ struct usb_init {
  * if type == USB_RAW_EVENT_CONTROL, data[] contains struct usb_ctrlrequest
  */
 struct usb_event {
-	__u32		type;
-	__u32		length;
-	__u8		data[];
+	__u32 type;
+	__u32 length;
+	__u8 data[];
 };
 
 /*
@@ -127,8 +127,8 @@ struct usb_event {
  * @ctrl: filled only for control events
  */
 struct usb_control_event {
-	struct usb_event 		inner_event;
-	struct usb_ctrlrequest 	ctrl;
+	struct usb_event inner_event;
+	struct usb_ctrlrequest ctrl;
 };
 
 /*
@@ -143,12 +143,12 @@ struct usb_control_event {
  * @dir_out: EP supports OUT direction
  */
 struct usb_ep_caps {
-	__u32	type_control: 1;
-	__u32	type_iso: 1;
-	__u32	type_bulk: 1;
-	__u32	type_int: 1;
-	__u32	dir_in: 1;
-	__u32	dir_out: 1;
+	__u32 type_control : 1;
+	__u32 type_iso : 1;
+	__u32 type_bulk : 1;
+	__u32 type_int : 1;
+	__u32 dir_in : 1;
+	__u32 dir_out : 1;
 };
 
 /*
@@ -160,9 +160,9 @@ struct usb_ep_caps {
  * @reserved: as of now, value is always empty
  */
 struct usb_ep_limits {
-	__u16	maxpacket_limit;
-	__u16	max_streams;
-	__u32	reserved;
+	__u16 maxpacket_limit;
+	__u16 max_streams;
+	__u32 reserved;
 };
 
 /*
@@ -174,10 +174,10 @@ struct usb_ep_limits {
  * @limits: limits of the endpoint
  */
 struct usb_ep_info {
-	__u8					name[USB_RAW_EP_NAME_MAX];
-	__u32					addr;
-	struct usb_ep_caps		caps;
-	struct usb_ep_limits	limits;
+	__u8 name[USB_RAW_EP_NAME_MAX];
+	__u32 addr;
+	struct usb_ep_caps caps;
+	struct usb_ep_limits limits;
 };
 
 /*
@@ -185,7 +185,7 @@ struct usb_ep_info {
  * @eps: information about non-control endpoints
  */
 struct usb_eps_info {
-	struct usb_ep_info	eps[USB_RAW_EPS_NUM_MAX];
+	struct usb_ep_info eps[USB_RAW_EPS_NUM_MAX];
 };
 
 /*
@@ -196,10 +196,10 @@ struct usb_eps_info {
  * @data: payload to send/receive data from the kernel
  */
 struct usb_ep_io {
-	__u16		ep;
-	__u16		flags;
-	__u32		length;
-	__u8		data[];
+	__u16 ep;
+	__u16 flags;
+	__u32 length;
+	__u8 data[];
 };
 
 /*
@@ -208,8 +208,8 @@ struct usb_ep_io {
  * @data: data to write/read from ep0
  */
 struct usb_control_io {
-	struct usb_ep_io	inner_io;
-	char				data[EP0_MAX_DATA];
+	struct usb_ep_io inner_io;
+	char data[EP0_MAX_DATA];
 };
 
 /*
@@ -218,17 +218,17 @@ struct usb_control_io {
  * @data: data to write/read from the ep
  */
 struct usb_int_io {
-	struct usb_ep_io	inner_io;
-	char				data[USB_MAX_PACKET_SIZE];
+	struct usb_ep_io inner_io;
+	char data[USB_MAX_PACKET_SIZE];
 };
 
-// USB initialization functions ---------------------------------------------------
 /*
  * usb_open - creates a raw gadget instance by opening /dev/raw-gadget
  * returns: file descriptor to open /dev/raw-gadget file
  */
-static int usb_open() {     
-	return open(DEV_RAW_GADGET, O_RDWR);	
+static int usb_open()
+{
+	return open(DEV_RAW_GADGET, O_RDWR);
 }
 
 /*
@@ -240,9 +240,10 @@ static int usb_open() {
  * @device: name of the UDC instance (['dummy_udc.0'])
  * returns: ioctl return value
  */
-static int usb_init(int fd, int speed, const char* driver, const char* device) {
+static int usb_init(int fd, int speed, const char *driver, const char *device)
+{
 	struct usb_init arg;
-    strncpy((char *)&arg.driver_name, driver, UDC_NAME_LENGTH_MAX);
+	strncpy((char *)&arg.driver_name, driver, UDC_NAME_LENGTH_MAX);
 	strncpy((char *)&arg.device_name, device, UDC_NAME_LENGTH_MAX);
 	arg.speed = speed;
 	return ioctl(fd, USB_RAW_IOCTL_INIT, &arg);
@@ -255,7 +256,8 @@ static int usb_init(int fd, int speed, const char* driver, const char* device) {
  *
  * raw gadget binds to a dummy_udc and device emulation starts
  */
-static int usb_run(int fd) {
+static int usb_run(int fd)
+{
 	return ioctl(fd, USB_RAW_IOCTL_RUN, 0);
 }
 
@@ -267,11 +269,11 @@ static int usb_run(int fd) {
  *
  * this is a blocking ioctl
  */
-static int usb_fetch(int fd, struct usb_event *event) {
+static int usb_fetch(int fd, struct usb_event *event)
+{
 	return ioctl(fd, USB_RAW_IOCTL_EVENT_FETCH, event);
 }
 
-// RAW GADGET EP interactions ---------------------------------------------------
 /*
  * usb_eps_info - queries information about the UDC's available non-control eps
  * @fd:	file descriptor of open /dev/raw-gadget
@@ -279,7 +281,8 @@ static int usb_fetch(int fd, struct usb_event *event) {
  * returns: ioctl return value (in this case, it is the number of
  * available endpoints)
  */
-static int usb_eps_info(int fd, struct usb_eps_info *info) {
+static int usb_eps_info(int fd, struct usb_eps_info *info)
+{
 	return ioctl(fd, USB_RAW_IOCTL_EPS_INFO, info);
 }
 
@@ -291,7 +294,8 @@ static int usb_eps_info(int fd, struct usb_eps_info *info) {
  * returns: ioctl return value (in this case, it is the length of
  * the transferred data)
  */
-static int usb_ep0_read(int fd, struct usb_ep_io *io) {
+static int usb_ep0_read(int fd, struct usb_ep_io *io)
+{
 	return ioctl(fd, USB_RAW_IOCTL_EP0_READ, io);
 }
 
@@ -303,7 +307,8 @@ static int usb_ep0_read(int fd, struct usb_ep_io *io) {
  * returns: ioctl return value (in this case, it is the length of
  * the transferred data)
  */
-static int usb_ep0_write(int fd, struct usb_ep_io *io) {
+static int usb_ep0_write(int fd, struct usb_ep_io *io)
+{
 	return ioctl(fd, USB_RAW_IOCTL_EP0_WRITE, io);
 }
 
@@ -314,7 +319,8 @@ static int usb_ep0_write(int fd, struct usb_ep_io *io) {
  * returns: ioctl return value (in this case, it is a handle to
  * an enabled endpoint)
  */
-static int usb_ep_enable(int fd, struct usb_endpoint_descriptor *desc) {
+static int usb_ep_enable(int fd, struct usb_endpoint_descriptor *desc)
+{
 	return ioctl(fd, USB_RAW_IOCTL_EP_ENABLE, desc);
 }
 
@@ -328,7 +334,8 @@ static int usb_ep_enable(int fd, struct usb_endpoint_descriptor *desc) {
  *
  * function waits until the request is completed
  */
-static int usb_ep_write(int fd, struct usb_ep_io *io) {
+static int usb_ep_write(int fd, struct usb_ep_io *io)
+{
 	return ioctl(fd, USB_RAW_IOCTL_EP_WRITE, io);
 }
 
@@ -337,7 +344,8 @@ static int usb_ep_write(int fd, struct usb_ep_io *io) {
  * @fd:	file descriptor of open /dev/raw-gadget
  * returns: ioctl return value
  */
-static void usb_ep_stall(int fd) {
+static void usb_ep_stall(int fd)
+{
 	ioctl(fd, USB_RAW_IOCTL_EP0_STALL, 0);
 }
 
@@ -355,23 +363,28 @@ static void usb_ep_stall(int fd) {
  * - usb_endpoint_maxp 		- gets endpoint's maximum supported packet size
  * - usb_endpoint_type 		- gets the endpoint's supported transfer type
  */
-static int usb_assign_address(struct usb_ep_info *info, struct usb_endpoint_descriptor *ep) {
-	if (usb_endpoint_num(ep) != 0) return 0;
-	if (usb_endpoint_dir_in(ep) && !info->caps.dir_in) return 0;
-	if (usb_endpoint_dir_out(ep) && !info->caps.dir_out) return 0;
-	if (usb_endpoint_maxp(ep) > info->limits.maxpacket_limit) return 0;
+static int usb_assign_address(struct usb_ep_info *info, struct usb_endpoint_descriptor *ep)
+{
+	if (usb_endpoint_num(ep) != 0)
+		return 0;
+	if (usb_endpoint_dir_in(ep) && !info->caps.dir_in)
+		return 0;
+	if (usb_endpoint_dir_out(ep) && !info->caps.dir_out)
+		return 0;
+	if (usb_endpoint_maxp(ep) > info->limits.maxpacket_limit)
+		return 0;
 	// checks ep's transfer type
 	switch (usb_endpoint_type(ep)) {
-		case USB_ENDPOINT_XFER_BULK:
-			if (!info->caps.type_bulk)
-				return 0;
-			break;
-		case USB_ENDPOINT_XFER_INT:
-			if (!info->caps.type_int)
-				return 0;
-			break;
-		default:
+	case USB_ENDPOINT_XFER_BULK:
+		if (!info->caps.type_bulk)
 			return 0;
+		break;
+	case USB_ENDPOINT_XFER_INT:
+		if (!info->caps.type_int)
+			return 0;
+		break;
+	default:
+		return 0;
 	}
 
 	if (info->addr == USB_RAW_EP_ADDR_ANY) {
@@ -388,7 +401,8 @@ static int usb_assign_address(struct usb_ep_info *info, struct usb_endpoint_desc
  * @fd:	file descriptor of open /dev/raw-gadget
  * @endpoint: pointer to the endpoint descriptor
  */
-static void usb_endpoints_info(int fd, struct usb_endpoint_descriptor *endpoint) {
+static void usb_endpoints_info(int fd, struct usb_endpoint_descriptor *endpoint)
+{
 	struct usb_eps_info info = { 0 };
 	// query the number of endpoints and further information
 	int eps = usb_eps_info(fd, &info);
@@ -397,14 +411,14 @@ static void usb_endpoints_info(int fd, struct usb_endpoint_descriptor *endpoint)
 			continue;
 }
 
-// USB setup functions -----------------------------------------------------------
 /*
  * usb_configure - sends gadget to the configured state
  * @fd:	file descriptor of open /dev/raw-gadget
  * returns: ioctl return value
  */
-static int usb_configure(int fd) {
- 	return ioctl(fd, USB_RAW_IOCTL_CONFIGURE, 0);
+static int usb_configure(int fd)
+{
+	return ioctl(fd, USB_RAW_IOCTL_CONFIGURE, 0);
 }
 
 /*
@@ -413,7 +427,8 @@ static int usb_configure(int fd) {
  * @power: current limit
  * returns: ioctl return value
  */
-static int usb_vbus_draw(int fd, uint32_t power) {
+static int usb_vbus_draw(int fd, uint32_t power)
+{
 	return ioctl(fd, USB_RAW_IOCTL_VBUS_DRAW, power);
 }
 
@@ -427,7 +442,8 @@ static int usb_vbus_draw(int fd, uint32_t power) {
  *
  * the order is prescribed in USB HID 1.1 specification: page 48
  */
-static int build_config(char *data, uint32_t length, struct custom_descriptors *descriptors) {
+static int build_config(char *data, uint32_t length, struct custom_descriptors *descriptors)
+{
 	struct usb_config_descriptor *config = (struct usb_config_descriptor *)data;
 	int total_length = 0;
 
@@ -439,18 +455,18 @@ static int build_config(char *data, uint32_t length, struct custom_descriptors *
 	}
 
 	if (length >= sizeof(*descriptors->interface)) {
-  		memcpy(data, descriptors->interface, sizeof(*descriptors->interface));                                                        
-  		data += sizeof(*descriptors->interface);
-  		length -= sizeof(*descriptors->interface);
-  		total_length += sizeof(*descriptors->interface);
+		memcpy(data, descriptors->interface, sizeof(*descriptors->interface));
+		data += sizeof(*descriptors->interface);
+		length -= sizeof(*descriptors->interface);
+		total_length += sizeof(*descriptors->interface);
 	}
-	
-	if (length >= sizeof(*descriptors->hid)) {     
-   		memcpy(data, descriptors->hid, sizeof(*descriptors->hid));
-   		data += sizeof(*descriptors->hid);         
-	    length -= sizeof(*descriptors->hid);       
-        total_length += sizeof(*descriptors->hid);    
-    }
+
+	if (length >= sizeof(*descriptors->hid)) {
+		memcpy(data, descriptors->hid, sizeof(*descriptors->hid));
+		data += sizeof(*descriptors->hid);
+		length -= sizeof(*descriptors->hid);
+		total_length += sizeof(*descriptors->hid);
+	}
 
 	if (length >= USB_DT_ENDPOINT_SIZE) {
 		memcpy(data, descriptors->endpoint, USB_DT_ENDPOINT_SIZE);
@@ -470,12 +486,14 @@ static int build_config(char *data, uint32_t length, struct custom_descriptors *
  * @config: pointer to usb_config_descriptor
  * returns: 0 on success
  */
-static int configure_device(int fd, struct usb_config_descriptor *config) {
+static int configure_device(int fd, struct usb_config_descriptor *config)
+{
 	int result = 0;
 	result = usb_vbus_draw(fd, config->bMaxPower);
-	if (result < 0) return result;
+	if (result < 0)
+		return result;
 	result = usb_configure(fd);
-	if (result < 0) return result;
+	if (result < 0)
+		return result;
 	return 0;
 }
-
