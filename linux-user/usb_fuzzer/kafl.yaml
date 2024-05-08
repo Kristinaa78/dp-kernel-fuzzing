@@ -9,6 +9,6 @@ qemu_initrd: '@format {env[EXAMPLES_ROOT]}/linux-user/scripts/kafl_initrd.cpio.g
 qemu_append: root=/dev/vda1 rw nokaslr oops=panic nopti mitigations=off console=ttyS0 earlyprintk=serial,ttyS0 hprintf=7
 
 timeout_soft: 1
-kickstart: 64
+kickstart: 16
 payload_size: 4096
-seed_dir: '@format {env[EXAMPLES_ROOT]}/linux-user/usb_fuzzer/src/usbmon/data/'
+#seed_dir: '@format {env[EXAMPLES_ROOT]}/linux-user/usb_fuzzer/src/usbmon/data'

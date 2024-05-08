@@ -124,7 +124,7 @@ void process_packet(struct usbmon_packet *hdr, void *data, uint8_t devnum)
 	}
 
 	// print captured data to stdout
-	fprintf(stdout,
+	/* fprintf(stdout,
 	        "ID: %p, TYPE: 0x%02x, TRANSFER TYPE: 0x%02x, ENDPOINT: 0x%02x, DIR: 0x%02x, "
 	        "DEVICE: 0x%02x, BUS: 0x%02x, DATA: 0x%02x, STATUS: 0x%08x, URB LEN: 0x%08x, "
 	        "DATA LENGTH: 0x%08x, TRANSFER FLAGS: 0x%08x\n",
@@ -140,6 +140,7 @@ void process_packet(struct usbmon_packet *hdr, void *data, uint8_t devnum)
 	        hdr->length,
 	        hdr->len_cap,
 	        hdr->xfer_flags);
+	*/
 	fprintf(stdout, "DATA: ");
 	for (int i = 0; i < hdr->len_cap; i++)
 		fprintf(stdout, "0x%02x ", ((unsigned char *)data)[i]);

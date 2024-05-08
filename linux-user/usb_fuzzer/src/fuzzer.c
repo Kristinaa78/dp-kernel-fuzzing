@@ -41,7 +41,7 @@
 
 #include "fuzzer.h"
 #include <asm/nyx_api.h>
-
+// test
 // USB device descriptor [standard descriptor]:
 // [https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/usb/ch9.h#L286]
 // - describes general information about a USB device
@@ -126,7 +126,7 @@ struct usb_endpoint_descriptor endpoint = {
 	.wMaxPacketSize = EP_MAX_PACKET_INT,
 	// interval for polling EP for data transfers
 	// - expressed in FRAMES/microFRAMES (depending on the device's speed)
-	.bInterval = 5,
+	.bInterval = 1,
 };
 
 // USB HID report [class-specific descriptor]:
@@ -201,6 +201,7 @@ struct custom_descriptors descriptors = { .device = &device,
 // was already enabled (or thread spawned)
 int ep_int_in = -1;
 pthread_t ep_int_in_thread;
+
 
 // [https://intellabs.github.io/kAFL/tutorials/linux/dvkm/agent.html#initialization]
 kAFL_payload *kafl_init()
@@ -299,7 +300,7 @@ kAFL_payload *kafl_init()
 	kAFL_hypercall(HYPERCALL_KAFL_RANGE_SUBMIT, (uint64_t)hid_range);
 
 	// 8. submit CR3
-	kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
+	// kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
 	// [32B vs 64B] - this influences QEMU and libxdc decoder
 	kAFL_hypercall(HYPERCALL_KAFL_USER_SUBMIT_MODE, KAFL_MODE_64);
 
@@ -328,8 +329,9 @@ void *fuzzing_loop(void *arg)
 			habort("[i] DEVICE LIKELY RESET\n");
 		else if (result < 0)
 			habort("[-] usb_ep_write() FAILED");
+		
+		usleep(1000*80);
 
-		sleep(1);
 		kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
 	}
 
