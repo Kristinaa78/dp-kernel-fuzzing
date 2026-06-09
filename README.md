@@ -1,3 +1,91 @@
+# USB Kernel Fuzzing with kAFL
+
+This repository accompanies a master's thesis on **experimental USB fuzzing of the Linux kernel** using
+the **[kAFL](https://github.com/IntelLabs/kAFL) fuzzer**. kAFL is a coverage-guided, hardware-assisted
+kernel fuzzer that leverages **Intel Processor Trace (Intel PT)** to collect feedback while
+fuzzing kernel code inside a virtualized target.
+
+The goal of the work is to fuzz the Linux kernel's **USB stack** by feeding
+the kernel generated USB traffic and using Intel PT feedback to explore the USB subsystem's code paths in
+search of bugs.
+
+The presented solution is an **enhancement to the kAFL fuzzing framework**.
+
+## My contributions
+
+The kAFL fuzzer itself was **not** modified. It is included only as cloned code so that the fuzzing
+environment runs (see [Repository structure](#repository-structure) below). The original work of this
+thesis lives in the following places:
+
+- **USB stack fuzzing target** —
+  [`linux-user/usb_fuzzer`](https://github.com/Kristinaa78/dp-kernel-fuzzing/tree/kAFL-targets/linux-user/usb_fuzzer)
+  (branch `kAFL-targets`)
+  is the code that fuzzes the Linux kernel USB stack: the harness/target that delivers fuzzed USB input to the
+  kernel under kAFL.
+- **USB activity logging utilities** —
+  [`usbmon` branch](https://github.com/Kristinaa78/dp-kernel-fuzzing/tree/usbmon) contains utilities for logging real USB communication activity, used to generate seed/input data for fuzzing.
+- **Custom synthetic USB device** —
+  [`examples/sampleUSB.c`](https://github.com/Kristinaa78/dp-kernel-fuzzing/blob/raw-gadget/examples/sampleUSB.c)
+  (branch `raw-gadget`)
+ is the code for generating a custom, artificial USB device used in the experiments.
+
+## Repository structure
+
+The repository is a copy of several kAFL GitHub repositories spread across branches. The upstream copies
+are unmodified; the thesis extension lives in the `kAFL-targets` branch (plus the supporting `usbmon` and
+`raw-gadget` branches).
+
+| Branch | Contents | Origin |
+|--------|----------|--------|
+| `main` | Copy of [IntelLabs/kAFL](https://github.com/IntelLabs/kAFL). | upstream |
+| `kAFL-fuzzer` | Copy of [IntelLabs/kafl.fuzzer](https://github.com/IntelLabs/kafl.fuzzer). | upstream |
+| `kAFL-targets` | Copy of [IntelLabs/kafl.targets](https://github.com/IntelLabs/kafl.targets), containing the thesis **extension** (the USB fuzzing target). | upstream + thesis |
+| `usbmon` | Utilities for collecting real USB data (the fuzzing corpus). | thesis |
+| `raw-gadget` | Code for generating a custom, artificial USB device. | thesis |
+
+### The extension (`kAFL-targets` branch)
+
+The core of the implementation resides in `linux-user/usb_fuzzer`:
+
+- **`fuzzer.c`** — the core of the extension: code for the emulated fuzzing USB device. Accompanied by its
+  header files **`fuzzer.h`** and **`constants.h`**.
+- **`ip_range.py`** — a script that retrieves the specified target IP ranges from the compiled `vmlinux`
+  binary.
+- **`usb_functions.txt`** and **`hid_functions.txt`** — the lists of functions for the USB host-side API
+  and the USB HID core, respectively.
+
+### Supporting utilities
+
+- **`usbmon.c`** (branch `usbmon`) — collects actual USB data (the fuzzing corpus) traced by the `usbmon`
+  kernel module.
+- **`examples/sampleUSB.c`** (branch `raw-gadget`) — generates a custom, artificial USB device used in the
+  experiments.
+
+## Requirements
+
+kAFL relies on hardware and platform support, most notably:
+
+- An Intel CPU with **Intel Processor Trace (Intel PT)** support
+- A kAFL-compatible host setup (KVM/Nyx backend) as described in the upstream kAFL documentation
+
+Refer to the upstream [kAFL documentation](https://github.com/IntelLabs/kAFL) for the full host
+prerequisites and setup steps.
+
+## Documentation
+The complete background on USB fuzzing, the design of the fuzzing target and supporting
+utilities, the experimental setup, and the results is available in [`dp.pdf`](dp.pdf). A detailed user
+manual is included at the end of the document.
+
+## Disclaimer
+
+This project is academic research carried out as part of a master's thesis. The fuzzing harness, USB device
+emulation, and logging utilities are intended for use in an isolated research environment for the purpose of
+finding and studying bugs in the Linux kernel USB stack. They are not meant for use against systems you do
+not own or are not authorized to test.
+
+
+***
+
 <h1 align="center">
   <br>kAFL</br>
 </h1>
